@@ -1,0 +1,25 @@
+[project]
+name = "minidlp"
+version = "0.1.0"
+description = "Mini deep learning primitives"
+readme = "README.md"
+authors = [
+    { name = "Karim Abou Zeid", email = "hi@ka.codes" }
+]
+requires-python = ">=3.10"
+dependencies = [
+    "black>=22.1.0",
+    "torch>=2.0.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/mini"]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.0",
+]
