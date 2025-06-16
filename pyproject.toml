@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Mini deep learning primitives"
 readme = "README.md"
 authors = [
-    { name = "Karim Abou Zeid", email = "hi@ka.codes" }
+    { name = "Karim Abou Zeid", email = "contact@ka.codes" }
 ]
 requires-python = ">=3.10"
 dependencies = [
