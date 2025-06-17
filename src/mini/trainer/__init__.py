@@ -1,4 +1,4 @@
-from .hooks import BaseHook, CheckpointHook, CudaMaxMemoryHook, LoggerHook, ProgressHook
+from .hooks import BaseHook, CheckpointHook, CudaMaxMemoryHook, LoggerHook, ProgressHook, EmaHook, WandbHook, ImageFileLoggerHook
 from .trainer import BaseTrainer
 
 __all__ = [
@@ -8,4 +8,7 @@ __all__ = [
     "CudaMaxMemoryHook",
     "LoggerHook",
     "ProgressHook",
+    "EmaHook",
+    "WandbHook",
+    "ImageFileLoggerHook",
 ]

@@ -2,13 +2,24 @@ import shutil
 import time
 from datetime import timedelta
 from pathlib import Path
-from typing import Literal
+from typing import Any, Callable, Literal, Sequence
 
 import torch
 import torch.distributed as dist
+from torch.distributed.checkpoint.state_dict import (
+    get_model_state_dict,
+    set_model_state_dict,
+)
+from torch.optim.swa_utils import AveragedModel, get_ema_avg_fn
+
+try:
+    import wandb
+except ImportError:
+    # only needed for WandbHook
+    pass
 
 from .trainer import BaseTrainer
-from .utils import key_average
+from .utils import flatten_nested_dict, key_average
 
 
 class BaseHook:
@@ -351,3 +362,121 @@ class CudaMaxMemoryHook(BaseHook):
         trainer.step_info["max_memory"] = torch.cuda.max_memory_allocated(
             trainer.device
         ) / (1024**3)  # GiB
+
+
+class EmaHook(BaseHook):
+    def __init__(self, decay: float):
+        self.decay = decay
+
+    def on_before_train(self, trainer: BaseTrainer):
+        trainer.logger.info("=> Creating EMA model ...")
+        # Note that AveragedModel does not seem to support FSDP. It will crash here.
+        self.ema_model = AveragedModel(trainer.model, avg_fn=get_ema_avg_fn(self.decay))
+
+    def on_after_step(self, trainer: BaseTrainer):
+        self.ema_model.update_parameters(trainer.model)
+
+    def on_load_state_dict(self, trainer: BaseTrainer, state_dict: dict):
+        trainer.logger.info("=> Loading EMA model state ...")
+        set_model_state_dict(self.ema_model, state_dict["ema_model"])
+
+    def on_state_dict(self, trainer: BaseTrainer, state_dict: dict):
+        # Note: sadly, we need to keep the AveragedModel wrapper, to save its n_averaged buffer
+        state_dict["ema_model"] = get_model_state_dict(self.ema_model)
+
+
+class WandbHook(BaseHook):
+    def __init__(
+        self,
+        project: str,
+        config: dict[str, Any] | str | None = None,
+        tags: Sequence[str] | None = None,
+        image_format: str | None | Callable[[str], str | None] = "png",
+    ):
+        self.project = project
+        self.config = config
+        self.tags = tags
+        if callable(image_format):
+            self.image_format = image_format
+        else:
+            self.image_format = lambda _: image_format
+
+    def on_before_train(self, trainer: BaseTrainer):
+        if dist.get_rank() == 0:
+            wandb_run_id = self._load_wandb_run_id(trainer)
+            # it seems that we should use resume_from={run_id}?_{step} in wandb.init instead, but it's not well documented
+            self.wandb = wandb.init(
+                project=self.project,
+                dir=trainer.workspace,
+                id=wandb_run_id,
+                resume="must" if wandb_run_id else None,
+                config=self.config,
+                tags=self.tags,
+            )
+            if not self.wandb.disabled:
+                self._save_wandb_run_id(trainer, self.wandb.id)
+
+    def on_after_train(self, trainer: BaseTrainer):
+        if dist.get_rank() == 0:
+            self.wandb.finish()
+
+    def on_log(self, trainer: BaseTrainer, records: dict, dry_run: bool = False):
+        if dist.get_rank() == 0:
+            data = {"/".join(k): v for k, v in flatten_nested_dict(records).items()}
+            if not dry_run:
+                self.wandb.log(data, step=trainer.step)
+            else:
+                trainer.logger.debug(f"Dry run log. Would log: {data}")
+
+    def on_log_images(self, trainer: BaseTrainer, records: dict, dry_run: bool = False):
+        if dist.get_rank() == 0:
+            wandb_data = {}
+            for k, img in flatten_nested_dict({"vis": records}).items():
+                key = "/".join(k[:-1])
+                wandb_data.setdefault(key, []).append(
+                    wandb.Image(img, caption=k[-1], file_type=self.image_format(k[-1]))
+                )
+
+            if not dry_run:
+                self.wandb.log(wandb_data, step=trainer.step)
+            else:
+                trainer.logger.debug(f"Dry run log. Would log: {wandb_data}")
+
+    def _wandb_run_id_file_name(self, trainer: BaseTrainer):
+        return trainer.workspace / "wandb_run_id"
+
+    def _save_wandb_run_id(self, trainer: BaseTrainer, run_id: str):
+        self._wandb_run_id_file_name(trainer).write_text(run_id)
+
+    def _load_wandb_run_id(self, trainer: BaseTrainer):
+        f = self._wandb_run_id_file_name(trainer)
+        if f.exists():
+            return f.read_text()
+        return None
+
+
+class ImageFileLoggerHook(BaseHook):
+    def __init__(
+        self,
+        image_format: str | Callable[[str], str] = "png",
+    ):
+        if callable(image_format):
+            self.image_format = image_format
+        else:
+            self.image_format = lambda _: image_format
+
+    def on_log_images(self, trainer: BaseTrainer, records: dict, dry_run: bool = False):
+        if dist.get_rank() == 0:
+            for k, img in flatten_nested_dict(records).items():
+                p = (
+                    trainer.workspace
+                    / "visualizations"
+                    / f"step_{trainer.step}"
+                    / Path(*k)
+                )
+                p = Path(str(p) + "." + self.image_format(k[-1]))
+                if not dry_run:
+                    p.parent.mkdir(parents=True, exist_ok=True)
+                    img.save(p)
+                else:
+                    trainer.logger.debug(f"Dry run log. Would save {img} to: {p}")
