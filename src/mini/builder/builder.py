@@ -1,3 +1,4 @@
+import functools
 import importlib
 from typing import Any, Callable, Dict, Type, Union
 
@@ -45,6 +46,10 @@ def build_from_cfg(
             self.backbone = backbone
             self.name = name
 
+    @REGISTRY.register()
+    def l1_loss(x, y, weight):
+        return (x - y).abs() * weight
+
     cfg = {
         'type': 'Model',
         'name': 'ResNet',
@@ -54,6 +59,10 @@ def build_from_cfg(
                 {'type': 'Layer', 'units': 64},
                 {'type': 'Layer', 'units': 128},
             ]
+        },
+        'loss': {
+            'type': 'l1_loss',
+            'weight': 0.5,
         }
     }
 
@@ -97,10 +106,17 @@ def _instantiate(cfg: Dict[str, Any], registry: Registry | None = None) -> Any:
     obj_type = cfg.pop("type")
 
     if registry and registry.get(obj_type):
-        cls = registry.get(obj_type)
+        obj = registry.get(obj_type)
     else:
-        module_path, class_name = obj_type.rsplit(".", 1)
+        module_path, obj_name = obj_type.rsplit(".", 1)
         module = importlib.import_module(module_path)
-        cls = getattr(module, class_name)
+        obj = getattr(module, obj_name)
 
-    return cls(**cfg)
+    if isinstance(obj, type):  # It's a class
+        return obj(**cfg)
+    elif callable(obj):  # It's a function
+        return functools.partial(obj, **cfg)
+    else:
+        raise TypeError(
+            f"Resolved object '{obj_type}' is neither a class nor a callable."
+        )
