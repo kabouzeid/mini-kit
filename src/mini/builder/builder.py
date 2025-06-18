@@ -85,16 +85,13 @@ def _recursive_build(obj: Any, registry: Registry | None) -> Any:
                     obj[k] = _recursive_build(v, registry)
             return _instantiate(obj, registry)
         else:
-            # Non-instantiable dict
-            return {k: _recursive_build(v, registry) for k, v in obj.items()}
-
-    elif isinstance(obj, list):
-        return [_recursive_build(v, registry) for v in obj]
-
-    elif isinstance(obj, tuple):
-        return tuple(_recursive_build(v, registry) for v in obj)
-
-    return obj  # primitive types
+            # Non-instantiable dict.
+            # Recurse, but preseve the original type (e.g., OrderedDict, EasyDict, etc.).
+            return type(obj)((k, _recursive_build(v, registry)) for k, v in obj.items())
+    elif isinstance(obj, (list, tuple, set)):
+        return type(obj)(_recursive_build(v, registry) for v in obj)
+    else:
+        return obj  # primitive types
 
 
 def _instantiate(cfg: Dict[str, Any], registry: Registry | None = None) -> Any:

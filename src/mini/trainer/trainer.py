@@ -2,7 +2,7 @@ import time
 from contextlib import closing, nullcontext
 from logging import Logger
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Iterable, Iterator
+from typing import TYPE_CHECKING, Any, Callable, Iterable, Iterator
 import warnings
 
 import torch
@@ -317,3 +317,14 @@ class BaseTrainer:
 def maybe_closing(obj):
     """Return a context manager that closes `obj` if it has a .close() method, otherwise does nothing."""
     return closing(obj) if callable(getattr(obj, "close", None)) else nullcontext(obj)
+
+
+def map_nested_tensor(f: Callable[[torch.Tensor], Any], obj: Any):
+    if isinstance(obj, torch.Tensor):
+        return f(obj)
+    elif isinstance(obj, (list, tuple, set)):
+        return type(obj)(map_nested_tensor(f, o) for o in obj)
+    elif isinstance(obj, dict):
+        return type(obj)((k, map_nested_tensor(f, v)) for k, v in obj.items())
+    else:
+        return obj
