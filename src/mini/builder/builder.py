@@ -112,9 +112,11 @@ def _instantiate(cfg: Dict[str, Any], registry: Registry | None = None) -> Any:
         module = importlib.import_module(module_path)
         obj = getattr(module, obj_name)
 
-    if isinstance(obj, type):  # It's a class
+    # NOTE: this is an opinionated design choice that should cover most use cases:
+    # types are instantiated, while functions are only partially applied
+    if isinstance(obj, type):
         return obj(**cfg)
-    elif callable(obj):  # It's a function
+    elif callable(obj):
         return functools.partial(obj, **cfg)
     else:
         raise TypeError(
