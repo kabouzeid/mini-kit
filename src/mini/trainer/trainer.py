@@ -1,9 +1,19 @@
 import time
+import warnings
 from contextlib import closing, nullcontext
 from logging import Logger
+from numbers import Number
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Iterable, Iterator
-import warnings
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Iterable,
+    Iterator,
+    MutableMapping,
+    TypeAlias,
+    Union,
+)
 
 import torch
 import torch.nn as nn
@@ -15,6 +25,8 @@ from torch.distributed.checkpoint.state_dict import (
 
 if TYPE_CHECKING:
     from .hooks import BaseHook
+
+Records: TypeAlias = dict[str, Union[Number, "Records"]]
 
 
 class BaseTrainer:
@@ -240,7 +252,7 @@ class BaseTrainer:
                 if self.lr_scheduler is not None:
                     self.lr_scheduler.step()
 
-    def forward(self, input: Any) -> tuple[torch.Tensor | None, dict]:
+    def forward(self, input: Any) -> tuple[torch.Tensor | None, Records]:
         """
         Perform the forward pass of the model.
 
@@ -251,8 +263,7 @@ class BaseTrainer:
             1. The computed loss tensor. If None, the backward and optimizer steps will be skipped.
             Note: When using DDP or FSDP, ensure that None is not returned after a forward pass
             to avoid potential undefined behavior.
-            2. A dictionary of values to be averaged and logged. Ensure all values are detached
-            from gradients to prevent unintended side effects.
+            2. A nested dictionary with str keys and Number values to be averaged and logged.
         """
         raise NotImplementedError
 

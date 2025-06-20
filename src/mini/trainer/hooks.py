@@ -18,7 +18,7 @@ except ImportError:
     # only needed for WandbHook
     pass
 
-from .trainer import BaseTrainer
+from .trainer import BaseTrainer, Records
 from .utils import flatten_nested_dict, key_average
 
 
@@ -52,11 +52,9 @@ class _StatsHook(BaseHook):
     def __init__(
         self,
         interval: int,
-        with_records: bool,
         sync: bool,
     ):
         self.interval = interval
-        self.with_records = with_records
         self.sync = sync
         self.reset()
 
@@ -129,7 +127,7 @@ class _StatsHook(BaseHook):
         step_time: float,
         data_time: float,
         max_memory: float | None,
-        records: dict,
+        records: Records,
     ):
         raise NotImplementedError("Subclasses must implement this method.")
 
@@ -176,7 +174,8 @@ class ProgressHook(_StatsHook):
         sync: bool = False,
         eta_warmup: int = 10,
     ):
-        super().__init__(interval=interval, with_records=with_records, sync=sync)
+        super().__init__(interval=interval, sync=sync)
+        self.with_records = with_records
         self.eta_warmup = eta_warmup
 
     def on_before_train(self, trainer: BaseTrainer):
@@ -203,7 +202,7 @@ class ProgressHook(_StatsHook):
         step_time: float,
         data_time: float,
         max_memory: float | None,
-        records: dict,
+        records: Records,
     ):
         lrs = [
             (i, param_group["lr"])
@@ -226,10 +225,9 @@ class LoggerHook(_StatsHook):
     def __init__(
         self,
         interval: int = 10,
-        with_records: bool = True,
         sync: bool = True,
     ):
-        super().__init__(interval, with_records, sync)
+        super().__init__(interval, sync)
 
     def process_stats(
         self,
@@ -239,7 +237,7 @@ class LoggerHook(_StatsHook):
         step_time: float,
         data_time: float,
         max_memory: float | None,
-        records: dict,
+        records: Records,
     ):
         lrs = [
             (i, param_group["lr"])
