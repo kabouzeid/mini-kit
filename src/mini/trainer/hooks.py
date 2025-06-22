@@ -1,6 +1,7 @@
 import shutil
 import time
 from datetime import timedelta
+from numbers import Number
 from pathlib import Path
 from typing import Any, Callable, Literal, Sequence
 
@@ -213,7 +214,17 @@ class ProgressHook(_StatsHook):
             + (f", grad_norm={grad_norm:.4f}" if grad_norm is not None else "")
             + f", step={step_time:.4f}s, data={data_time:.4f}s, eta={self.eta_tracker.get_eta()}"
             + (f", mem={max_memory:.1f}GiB" if max_memory is not None else "")
-            + (f", records={records}" if self.with_records else "")  # TODO: format
+            + (
+                (
+                    " | "
+                    + ", ".join(
+                        f"{'/'.join(k)}={f'{v:#.4g}' if isinstance(v, Number) else v}"
+                        for k, v in flatten_nested_dict(records).items()
+                    )
+                )
+                if self.with_records
+                else ""
+            )
         )
 
 
