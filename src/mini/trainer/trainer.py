@@ -22,6 +22,7 @@ class BaseTrainer:
         self,
         max_steps: int,
         grad_clip: float | None,
+        max_nan_grad_retries: int | None,
         mixed_precision: str | None,
         accumulate: int | None,
         workspace: Path | str | None,
@@ -33,6 +34,7 @@ class BaseTrainer:
         self.step = 0  # refers to the last begun step. incremented *before* each step
         self.max_steps = max_steps
         self.grad_clip = grad_clip
+        self.max_nan_grad_retries = max_nan_grad_retries
         match mixed_precision:
             case "fp16":
                 self.mixed_precision = torch.float16
@@ -161,6 +163,7 @@ class BaseTrainer:
 
         reset_step_info()
         self.step_info["data_time"] = []
+        nan_grad_retry_count = 0
         i_acc = 0
         while i_acc < self.accumulate:
             is_accumulating = i_acc < self.accumulate - 1
@@ -222,12 +225,22 @@ class BaseTrainer:
                         for p in self.model.parameters()
                         if p.grad is not None
                     ):
-                        self.logger.warning("Gradient is NaN. Skipping optimizer step.")
-                        self.optimizer.zero_grad()
-                        # TODO: check if we also need to "reset" (is that a thing?) the scaler here
-                        reset_step_info()
-                        i_acc = 0  # start accumulation again
-                        continue
+                        if self.max_nan_grad_retries is not None and (
+                            nan_grad_retry_count < self.max_nan_grad_retries
+                        ):
+                            nan_grad_retry_count += 1
+                            self.logger.warning(
+                                f"Gradient is NaN. Retrying step {self.step} (retry {nan_grad_retry_count}/{self.max_nan_grad_retries})."
+                            )
+                            self.optimizer.zero_grad()
+                            # TODO: check if we also need to "reset" (is that a thing?) the scaler here
+                            reset_step_info()
+                            i_acc = 0  # start accumulation again
+                            continue
+                        else:
+                            raise RuntimeError(
+                                "Gradient is NaN. Exceeded maximum retries for NaN gradients."
+                            )
                 self.grad_scaler.unscale_(self.optimizer)
                 if self.grad_clip is not None:
                     self.step_info["grad_norm"] = torch.nn.utils.clip_grad_norm_(
