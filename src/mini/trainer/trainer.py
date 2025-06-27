@@ -10,7 +10,6 @@ from typing import (
     Callable,
     Iterable,
     Iterator,
-    MutableMapping,
     TypeAlias,
     Union,
 )
@@ -34,7 +33,7 @@ class BaseTrainer:
         self,
         max_steps: int,
         grad_clip: float | None,
-        max_nan_grad_retries: int | None,
+        max_non_finite_grad_retries: int | None,
         mixed_precision: str | None,
         accumulate: int | None,
         workspace: Path | str | None,
@@ -46,7 +45,7 @@ class BaseTrainer:
         self.step = 0  # refers to the last begun step. incremented *before* each step
         self.max_steps = max_steps
         self.grad_clip = grad_clip
-        self.max_nan_grad_retries = max_nan_grad_retries
+        self.max_non_finite_grad_retries = max_non_finite_grad_retries
         match mixed_precision:
             case "fp16":
                 self.mixed_precision = torch.float16
@@ -175,7 +174,7 @@ class BaseTrainer:
 
         reset_step_info()
         self.step_info["data_time"] = []
-        nan_grad_retry_count = 0
+        non_finite_grad_retry_count = 0
         i_acc = 0
         while i_acc < self.accumulate:
             is_accumulating = i_acc < self.accumulate - 1
@@ -217,9 +216,13 @@ class BaseTrainer:
                             "Loss is None; skipping backward step. Ensure self.model.forward was not called in self.forward to avoid undefined behavior in DDP and FSDP."
                         )
                     continue  # skip the backward & optimizer step
-                if torch.isnan(loss):  # TODO: check if device sync slows down training
-                    self.logger.warning(f"Loss is NaN. records={records}")
-                    # we will handle NaN later at the optimizer step, the warning is just for debugging
+                if not torch.isfinite(
+                    loss
+                ):  # TODO: check if device sync slows down training
+                    self.logger.warning(
+                        f"Loss is non-finite ({loss.item()}). records={records}"
+                    )
+                    # we will handle non-finite later at the optimizer step, the warning is just for debugging
                     # keep in mind that at least for DDP, we must still call backward() to avoid undefined behavior!
 
                 self.step_info["loss"].append(loss.detach())
@@ -231,18 +234,24 @@ class BaseTrainer:
 
             if not is_accumulating:
                 if not self.grad_scaler.is_enabled():
-                    # only skip NaN grads if the scaler is disabled (the scaler needs to process NaN grads to adjust the scale)
+                    # only skip non-finite grads if the scaler is disabled (the scaler needs to process non-finite grads to adjust the scale)
                     if any(
-                        torch.isnan(p.grad).any()
+                        (not torch.isfinite(p.grad).all())
                         for p in self.model.parameters()
                         if p.grad is not None
                     ):
-                        if self.max_nan_grad_retries is not None and (
-                            nan_grad_retry_count < self.max_nan_grad_retries
+                        if self.max_non_finite_grad_retries is None or (
+                            non_finite_grad_retry_count
+                            < self.max_non_finite_grad_retries
                         ):
-                            nan_grad_retry_count += 1
+                            non_finite_grad_retry_count += 1
                             self.logger.warning(
-                                f"Gradient is NaN. Retrying step {self.step} (retry {nan_grad_retry_count}/{self.max_nan_grad_retries})."
+                                f"Gradient is non-finite. Retrying step {self.step} (retry {non_finite_grad_retry_count}"
+                                + (
+                                    f"/{self.max_non_finite_grad_retries})."
+                                    if self.max_non_finite_grad_retries is not None
+                                    else ")."
+                                )
                             )
                             self.optimizer.zero_grad()
                             # TODO: check if we also need to "reset" (is that a thing?) the scaler here
@@ -251,7 +260,7 @@ class BaseTrainer:
                             continue
                         else:
                             raise RuntimeError(
-                                "Gradient is NaN. Exceeded maximum retries for NaN gradients."
+                                "Gradient is non-finite. Exceeded maximum retries for non-finite gradients."
                             )
                 self.grad_scaler.unscale_(self.optimizer)
                 if self.grad_clip is not None:
