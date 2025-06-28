@@ -192,8 +192,8 @@ class ProgressHook(_StatsHook):
         trainer.logger.info("=> Finished training")
 
     def on_after_step(self, trainer: BaseTrainer):
+        self.eta_tracker.step()  # should be called before process_stats
         super().on_after_step(trainer)
-        self.eta_tracker.step()
 
     def process_stats(
         self,
@@ -205,20 +205,24 @@ class ProgressHook(_StatsHook):
         max_memory: float | None,
         records: Records,
     ):
+        eta = self.eta_tracker.get_eta()
         lrs = [
             (i, param_group["lr"])
             for i, param_group in enumerate(trainer.optimizer.param_groups)
         ]
         trainer.logger.info(
-            f"Step {trainer.step:>{len(str(trainer.max_steps))}}/{trainer.max_steps}: loss={loss:.4f}, {', '.join(f'lr_{i}={lr:.2e}' for i, lr in lrs)}"
-            + (f", grad_norm={grad_norm:.4f}" if grad_norm is not None else "")
-            + f", step={step_time:.4f}s, data={data_time:.4f}s, eta={self.eta_tracker.get_eta()}"
-            + (f", mem={max_memory:.1f}GiB" if max_memory is not None else "")
+            f"Step {trainer.step:>{len(str(trainer.max_steps))}}/{trainer.max_steps}:"
+            + f" step {step_time:.4f}s data {data_time:.4f}s"
+            + (f" eta {eta}" if eta is not None else "")
+            + (f" mem {max_memory:#.3g}GiB" if max_memory is not None else "")
+            + f" loss {loss:.4f}"
+            + (f" grad_norm {grad_norm:.4f}" if grad_norm is not None else "")
+            + (" " + " ".join(f"lr_{i} {lr:.2e}" for i, lr in lrs))
             + (
                 (
                     " | "
-                    + ", ".join(
-                        f"{'/'.join(k)}={f'{v:#.4g}' if isinstance(v, Number) else v}"
+                    + " ".join(
+                        f"{'/'.join(k)} {f'{v:#.4g}' if isinstance(v, Number) else v}"
                         for k, v in flatten_nested_dict(records).items()
                     )
                 )
