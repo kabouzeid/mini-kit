@@ -401,6 +401,7 @@ class WandbHook(BaseHook):
         config: dict[str, Any] | str | None = None,
         tags: Sequence[str] | None = None,
         image_format: str | None | Callable[[str], str | None] = "png",
+        **wandb_kwargs,
     ):
         self.project = project
         self.config = config
@@ -409,6 +410,7 @@ class WandbHook(BaseHook):
             self.image_format = image_format
         else:
             self.image_format = lambda _: image_format
+        self.wandb_kwargs = wandb_kwargs
 
     def on_before_train(self, trainer: BaseTrainer):
         if dist.get_rank() == 0:
@@ -421,6 +423,7 @@ class WandbHook(BaseHook):
                 resume="must" if wandb_run_id else None,
                 config=self.config,
                 tags=self.tags,
+                **self.wandb_kwargs,
             )
             if not self.wandb.disabled:
                 self._save_wandb_run_id(trainer, self.wandb.id)
