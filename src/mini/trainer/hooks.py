@@ -1,6 +1,7 @@
 import shutil
 import time
 from datetime import timedelta
+from numbers import Number
 from pathlib import Path
 from typing import Any, Callable, Literal, Sequence
 
@@ -18,7 +19,7 @@ except ImportError:
     # only needed for WandbHook
     pass
 
-from .trainer import BaseTrainer
+from .trainer import BaseTrainer, Records
 from .utils import flatten_nested_dict, key_average
 
 
@@ -52,11 +53,9 @@ class _StatsHook(BaseHook):
     def __init__(
         self,
         interval: int,
-        with_records: bool,
         sync: bool,
     ):
         self.interval = interval
-        self.with_records = with_records
         self.sync = sync
         self.reset()
 
@@ -129,7 +128,7 @@ class _StatsHook(BaseHook):
         step_time: float,
         data_time: float,
         max_memory: float | None,
-        records: dict,
+        records: Records,
     ):
         raise NotImplementedError("Subclasses must implement this method.")
 
@@ -176,7 +175,8 @@ class ProgressHook(_StatsHook):
         sync: bool = False,
         eta_warmup: int = 10,
     ):
-        super().__init__(interval=interval, with_records=with_records, sync=sync)
+        super().__init__(interval=interval, sync=sync)
+        self.with_records = with_records
         self.eta_warmup = eta_warmup
 
     def on_before_train(self, trainer: BaseTrainer):
@@ -192,8 +192,8 @@ class ProgressHook(_StatsHook):
         trainer.logger.info("=> Finished training")
 
     def on_after_step(self, trainer: BaseTrainer):
+        self.eta_tracker.step()  # should be called before process_stats
         super().on_after_step(trainer)
-        self.eta_tracker.step()
 
     def process_stats(
         self,
@@ -203,18 +203,32 @@ class ProgressHook(_StatsHook):
         step_time: float,
         data_time: float,
         max_memory: float | None,
-        records: dict,
+        records: Records,
     ):
+        eta = self.eta_tracker.get_eta()
         lrs = [
             (i, param_group["lr"])
             for i, param_group in enumerate(trainer.optimizer.param_groups)
         ]
         trainer.logger.info(
-            f"Step {trainer.step:>{len(str(trainer.max_steps))}}/{trainer.max_steps}: loss={loss:.4f}, {', '.join(f'lr_{i}={lr:.2e}' for i, lr in lrs)}"
-            + (f", grad_norm={grad_norm:.4f}" if grad_norm is not None else "")
-            + f", step={step_time:.4f}s, data={data_time:.4f}s, eta={self.eta_tracker.get_eta()}"
-            + (f", mem={max_memory:.1f}GiB" if max_memory is not None else "")
-            + (f", records={records}" if self.with_records else "")  # TODO: format
+            f"Step {trainer.step:>{len(str(trainer.max_steps))}}/{trainer.max_steps}:"
+            + f" step {step_time:.4f}s data {data_time:.4f}s"
+            + (f" eta {eta}" if eta is not None else "")
+            + (f" mem {max_memory:#.3g}GiB" if max_memory is not None else "")
+            + f" loss {loss:.4f}"
+            + (f" grad_norm {grad_norm:.4f}" if grad_norm is not None else "")
+            + (" " + " ".join(f"lr_{i} {lr:.2e}" for i, lr in lrs))
+            + (
+                (
+                    " | "
+                    + " ".join(
+                        f"{'/'.join(k)} {f'{v:#.4g}' if isinstance(v, Number) else v}"
+                        for k, v in flatten_nested_dict(records).items()
+                    )
+                )
+                if self.with_records
+                else ""
+            )
         )
 
 
@@ -226,10 +240,9 @@ class LoggerHook(_StatsHook):
     def __init__(
         self,
         interval: int = 10,
-        with_records: bool = True,
         sync: bool = True,
     ):
-        super().__init__(interval, with_records, sync)
+        super().__init__(interval, sync)
 
     def process_stats(
         self,
@@ -239,7 +252,7 @@ class LoggerHook(_StatsHook):
         step_time: float,
         data_time: float,
         max_memory: float | None,
-        records: dict,
+        records: Records,
     ):
         lrs = [
             (i, param_group["lr"])
@@ -392,6 +405,7 @@ class WandbHook(BaseHook):
         config: dict[str, Any] | str | None = None,
         tags: Sequence[str] | None = None,
         image_format: str | None | Callable[[str], str | None] = "png",
+        **wandb_kwargs,
     ):
         self.project = project
         self.config = config
@@ -400,6 +414,7 @@ class WandbHook(BaseHook):
             self.image_format = image_format
         else:
             self.image_format = lambda _: image_format
+        self.wandb_kwargs = wandb_kwargs
 
     def on_before_train(self, trainer: BaseTrainer):
         if dist.get_rank() == 0:
@@ -412,6 +427,7 @@ class WandbHook(BaseHook):
                 resume="must" if wandb_run_id else None,
                 config=self.config,
                 tags=self.tags,
+                **self.wandb_kwargs,
             )
             if not self.wandb.disabled:
                 self._save_wandb_run_id(trainer, self.wandb.id)
