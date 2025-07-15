@@ -17,6 +17,9 @@ trainer = [
     "torch>=2.0.0",
     "wandb>=0.20.1",
 ]
+itar = [
+    "msgpack>=1.1.1",
+]
 
 [build-system]
 requires = ["hatchling"]
