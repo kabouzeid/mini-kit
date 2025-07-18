@@ -1,8 +1,15 @@
 import io
+import subprocess
 import tarfile
+import threading
 
+import msgpack
 import pytest
-from mini.itar.sharded_indexed_tar import ShardedIndexedTar
+from mini.itar.sharded_indexed_tar import (
+    ShardedIndexedTar,
+    tar_file_reader,
+)
+from mini.itar.utils import ThreadLocalPreadIO, build_tar_index
 
 
 def make_tar_bytes(files):
@@ -73,9 +80,7 @@ def test_sharded_indexed_tar_info(sharded_tar_and_files):
 def test_sharded_indexed_tar_verify_index(sharded_tar_and_files):
     tar_bytes, files_ls = sharded_tar_and_files
     itar = ShardedIndexedTar(tar_bytes)
-    for files in files_ls:
-        for name in files:
-            itar.verify_index(name)
+    itar.check_tar_index()
     itar.close()
 
 
@@ -83,14 +88,14 @@ def test_sharded_indexed_tar_verify_index_raises(sharded_tar_and_files):
     tar_bytes, files_ls = sharded_tar_and_files
     itar = ShardedIndexedTar(
         tar_bytes,
-        indices=[
-            {k: (0, 512, 0, None) for k, v in files.items()} for files in files_ls
-        ],
+        index={
+            k: (i, (0, 512, 0, None))
+            for i, files in enumerate(files_ls)
+            for k, v in files.items()
+        },
     )
-    for files in files_ls:
-        for name in files:
-            with pytest.raises(ValueError):
-                itar.verify_index(name)
+    with pytest.raises(ValueError):
+        itar.check_tar_index()
     itar.close()
 
 
@@ -109,10 +114,12 @@ def test_sharded_indexed_tar_build_indices(tmp_path):
     ]
     tar_bytes = make_sharded_tar_bytes(files_ls)
     itar = ShardedIndexedTar(tar_bytes)
-    assert itar.indices == [
-        {"x.txt": (0, 512, 4, None), "y.txt": (1024, 1536, 5, None)},
-        {"a.txt": (0, 512, 3, None), "b.txt": (1024, 1536, 3, None)},
-    ]
+    assert itar.index == {
+        "x.txt": (0, (0, 512, 4, None)),
+        "y.txt": (0, (1024, 1536, 5, None)),
+        "a.txt": (1, (0, 512, 3, None)),
+        "b.txt": (1, (1024, 1536, 3, None)),
+    }
     assert set(itar.keys()) == set(f for files in files_ls for f in files)
     for files in files_ls:
         for name in files:
@@ -126,3 +133,138 @@ def test_indexed_tar_missing_key(sharded_tar_and_files):
     with pytest.raises(KeyError):
         _ = itar["notfound.txt"]
     itar.close()
+
+
+@pytest.fixture
+def gnu_sparse_tar(tmp_path):
+    # Create a sparse file
+    sparse_file = tmp_path / "sparsefile"
+    with open(sparse_file, "wb") as f:
+        f.write(b"START")  # Write something at the start
+        f.seek(1024 * 1024 * 10)  # 10 MiB hole
+        f.write(b"END")  # Write something at the end
+
+    tar_path = tmp_path / "sparse.tar"
+
+    # Create GNU sparse tar using the system tar command
+    subprocess.run(
+        ["tar", "--sparse", "--format=gnu", "-cf", str(tar_path), "sparsefile"],
+        cwd=tmp_path,
+        check=True,
+    )
+
+    return tar_path
+
+
+def test_threadlocalpreadio_vs_open_with_sparse(gnu_sparse_tar):
+    index = build_tar_index(gnu_sparse_tar)
+    offset, offset_data, size, sparse = index["sparsefile"]
+    assert offset == 0
+    assert offset_data == 512
+    assert size == 10485763
+    assert sparse == [(0, 4096), (10485760, 3), (10485763, 0), (0, 0)]
+
+    # Compare reading with open() and ThreadLocalPreadIO
+    with open(gnu_sparse_tar, "rb") as f1, ThreadLocalPreadIO(gnu_sparse_tar) as f2:
+        # Use tar_file_reader with sparse pattern
+        f1.seek(0)
+        reader1 = tar_file_reader("sparsefile", offset_data, size, sparse, f1)
+        f2.seek(0)
+        reader2 = tar_file_reader("sparsefile", offset_data, size, sparse, f2)
+        data1 = reader1.read()
+        data2 = reader2.read()
+        # The expected data is b"abc" + b"\x00" * (1024-3) + b"def"
+        expected = b"START" + b"\x00" * (1024 * 1024 * 10 - len(b"START")) + b"END"
+        assert data1 == expected
+        assert data2 == expected
+        assert data1 == data2
+
+
+def test_sharded_indexed_tar_race_condition(tmp_path):
+    """
+    This test demonstrates a race condition in the non-thread-safe ShardedIndexedTar
+    when multiple threads read from the same shard. The file descriptor offset is shared,
+    so concurrent reads can interfere with each other, causing data corruption.
+
+    This test can be flaky, as it relies on timing and may not always trigger.
+    """
+    NUM_READS = 100000  # increase to make it more likely to hit
+
+    files = {"a.txt": b"hello", "b.txt": b"world"}
+    tar_path = tmp_path / "race_shard.tar"
+    with tarfile.open(tar_path, "w") as tf:
+        for name, data in files.items():
+            info = tarfile.TarInfo(name)
+            info.size = len(data)
+            tf.addfile(info, io.BytesIO(data))
+
+    def multi_threaded_read_corrupted(itar):
+        results = {}
+
+        def read_file(name):
+            # Read the file multiple times to increase the chance of a race
+            for _ in range(NUM_READS):
+                with itar[name] as f:
+                    data = f.read()
+                    if data != files[name]:
+                        # Save the corrupted data for debugging
+                        results.setdefault(name, []).append(data)
+
+        threads = []
+        for name in files:
+            t = threading.Thread(target=read_file, args=(name,))
+            threads.append(t)
+            t.start()
+        for t in threads:
+            t.join()
+
+        # If the implementation is not thread-safe, at least one read should be corrupted
+        return any(
+            any(d != files[name] for d in datas) for name, datas in results.items()
+        )
+
+    # Use the same tar file twice to ensure both keys are in the same shard
+    with ShardedIndexedTar([tar_path]) as sitar:
+        assert multi_threaded_read_corrupted(sitar)
+
+    # Use the same tar file twice to ensure both keys are in the same shard
+    with ShardedIndexedTar([ThreadLocalPreadIO(tar_path)]) as sitar:
+        assert not multi_threaded_read_corrupted(sitar)
+
+
+def test_sharded_indexed_tar_open_and_save(tmp_path, sharded_tar_and_files):
+    tar_bytes, files_ls = sharded_tar_and_files
+
+    # Save the shards to disk to test open/save with file paths
+    shard_paths = []
+    for i, buf in enumerate(tar_bytes):
+        path = tmp_path / f"archive-{i:0{len(str(len(tar_bytes) - 1))}d}.tar"
+        with open(path, "wb") as f:
+            f.write(buf.getbuffer())
+        shard_paths.append(str(path))
+
+    # Create ShardedIndexedTar and save the index
+    sitar_path = tmp_path / "archive.sitar"
+    with ShardedIndexedTar(shard_paths) as sitar:
+        sitar.save(sitar_path)
+
+    # Check that the saved file exists and is a valid msgpack file
+    with open(sitar_path, "rb") as f:
+        num_shards, index = msgpack.load(f)
+    assert num_shards == len(shard_paths)
+    assert isinstance(index, dict)
+    assert set(index.keys()) == set(f for files in files_ls for f in files)
+
+    # Open the archive using the classmethod and check contents
+    sitar2 = ShardedIndexedTar.open(sitar_path)
+    assert set(sitar2.keys()) == set(f for files in files_ls for f in files)
+    for files in files_ls:
+        for name, content in files.items():
+            with sitar2[name] as f:
+                assert f.read() == content
+    sitar2.close()
+
+    # Open the archive with explicit shards argument
+    sitar3 = ShardedIndexedTar.open(sitar_path, shards=shard_paths)
+    assert set(sitar3.keys()) == set(f for files in files_ls for f in files)
+    sitar3.close()

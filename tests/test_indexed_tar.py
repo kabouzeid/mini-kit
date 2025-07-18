@@ -77,8 +77,7 @@ def test_indexed_tar_with_links_and_symlinks(tmp_path):
     assert info_hard.islnk()
     assert info_sym.issym()
     # Verify index does not raise
-    for name in ["a.txt", "hardlink.txt", "symlink.txt"]:
-        itar.verify_index(name)
+    itar.check_tar_index()
     itar.close()
 
 
@@ -95,17 +94,15 @@ def test_indexed_tar_info(tar_and_files):
 def test_indexed_tar_verify_index(tar_and_files):
     tar_bytes, files = tar_and_files
     itar = IndexedTar(tar_bytes)
-    for name in files:
-        itar.verify_index(name)
+    itar.check_tar_index()
     itar.close()
 
 
 def test_indexed_tar_verify_index_raises(tar_and_files):
     tar_bytes, files = tar_and_files
     itar = IndexedTar(tar_bytes, index={k: (0, 512, 0, None) for k, v in files.items()})
-    for name in files:
-        with pytest.raises(ValueError):
-            itar.verify_index(name)
+    with pytest.raises(ValueError):
+        itar.check_tar_index()
     itar.close()
 
 
