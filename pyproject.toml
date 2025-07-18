@@ -21,6 +21,10 @@ itar = [
     "msgpack>=1.1.1",
 ]
 
+[project.scripts]
+sitar-create = "mini.itar.sharded_indexed_tar:cli_create"
+sitar-check = "mini.itar.sharded_indexed_tar:cli_check"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
