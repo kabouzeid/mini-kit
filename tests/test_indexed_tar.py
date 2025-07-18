@@ -1,6 +1,7 @@
 import io
 import tarfile
 
+from mini.itar.utils import TarIndexError
 import pytest
 from mini.itar.indexed_tar import IndexedTar
 
@@ -101,7 +102,7 @@ def test_indexed_tar_verify_index(tar_and_files):
 def test_indexed_tar_verify_index_raises(tar_and_files):
     tar_bytes, files = tar_and_files
     itar = IndexedTar(tar_bytes, index={k: (0, 512, 0, None) for k, v in files.items()})
-    with pytest.raises(ValueError):
+    with pytest.raises(TarIndexError):
         itar.check_tar_index()
     itar.close()
 

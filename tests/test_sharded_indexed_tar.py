@@ -9,7 +9,7 @@ from mini.itar.sharded_indexed_tar import (
     ShardedIndexedTar,
     tar_file_reader,
 )
-from mini.itar.utils import ThreadLocalPreadIO, build_tar_index
+from mini.itar.utils import TarIndexError, ThreadLocalPreadIO, build_tar_index
 
 
 def make_tar_bytes(files):
@@ -94,7 +94,7 @@ def test_sharded_indexed_tar_verify_index_raises(sharded_tar_and_files):
             for k, v in files.items()
         },
     )
-    with pytest.raises(ValueError):
+    with pytest.raises(TarIndexError):
         itar.check_tar_index()
     itar.close()
 
