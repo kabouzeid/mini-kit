@@ -22,8 +22,7 @@ itar = [
 ]
 
 [project.scripts]
-sitar-create = "mini.itar.sharded_indexed_tar:cli_create"
-sitar-check = "mini.itar.sharded_indexed_tar:cli_check"
+itar = "mini.itar.sharded_indexed_tar:cli"
 
 [build-system]
 requires = ["hatchling"]
