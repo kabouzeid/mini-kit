@@ -66,6 +66,67 @@ def test_sharded_indexed_tar_basic(sharded_tar_and_files):
     itar.close()
 
 
+def test_sharded_indexed_tar_symlinks_and_hardlinks():
+    # Create two shards: one with a file, one with symlink and hardlink
+    files1 = {
+        "file1.txt": b"data1",
+    }
+
+    # Create tarfile for files1
+    buf1 = io.BytesIO()
+    with tarfile.open(fileobj=buf1, mode="w") as tf:
+        for name, data in files1.items():
+            info = tarfile.TarInfo(name)
+            info.size = len(data)
+            tf.addfile(info, io.BytesIO(data))
+    buf1.seek(0)
+
+    # Create tarfile for files2 with symlink and hardlink
+    buf2 = io.BytesIO()
+    with tarfile.open(fileobj=buf2, mode="w") as tf:
+        # Symlink in same shard
+        symlink_info = tarfile.TarInfo("link1.txt")
+        symlink_info.type = tarfile.SYMTYPE
+        symlink_info.linkname = "file1.txt"
+        tf.addfile(symlink_info)
+
+        # Hardlink in same shard
+        hardlink_info = tarfile.TarInfo("hard1.txt")
+        hardlink_info.type = tarfile.LNKTYPE
+        hardlink_info.linkname = "file1.txt"
+        tf.addfile(hardlink_info)
+
+        # Symlink to file in another shard (should not resolve, but test behavior)
+        symlink_cross_info = tarfile.TarInfo("crosslink.txt")
+        symlink_cross_info.type = tarfile.SYMTYPE
+        symlink_cross_info.linkname = "../file1.txt"
+        tf.addfile(symlink_cross_info)
+
+    buf2.seek(0)
+
+    # Compose shards
+    tar_bytes = [buf1, buf2]
+    itar = ShardedIndexedTar(tar_bytes)
+
+    # file1.txt should be readable
+    with itar["file1.txt"] as f:
+        assert f.read() == b"data1"
+
+    # link1.txt is a symlink to file1.txt (in another shard)
+    with itar["link1.txt"] as f:
+        assert f.read() == b"data1"
+
+    # hard1.txt is a hardlink to file1.txt (in another shard)
+    with itar["hard1.txt"] as f:
+        assert f.read() == b"data1"
+
+    # crosslink.txt is a symlink to ../file1.txt (should fail or be empty)
+    with pytest.raises(KeyError):
+        _ = itar["crosslink.txt"].read()
+
+    itar.close()
+
+
 def test_sharded_indexed_tar_info(sharded_tar_and_files):
     tar_bytes, files_ls = sharded_tar_and_files
     itar = ShardedIndexedTar(tar_bytes)
@@ -107,7 +168,7 @@ def test_sharded_indexed_tar_context_manager(sharded_tar_and_files):
                 assert itar[name].read() == files[name]
 
 
-def test_sharded_indexed_tar_build_indices(tmp_path):
+def test_sharded_indexed_tar_build_index(tmp_path):
     files_ls = [
         {"x.txt": b"some", "y.txt": b"files"},
         {"a.txt": b"foo", "b.txt": b"bar"},
