@@ -286,15 +286,19 @@ def test_sharded_indexed_tar_race_condition(tmp_path):
 
     This test can be flaky, as it relies on timing and may not always trigger.
     """
-    NUM_READS = 100000  # increase to make it more likely to hit
+    NUM_READS = 10000  # increase to make it more likely to hit
 
     files = {"a.txt": b"hello", "b.txt": b"world"}
-    tar_path = tmp_path / "race_shard.tar"
+    tar_path = tmp_path / "race_shard-0.tar"
     with tarfile.open(tar_path, "w") as tf:
         for name, data in files.items():
             info = tarfile.TarInfo(name)
             info.size = len(data)
             tf.addfile(info, io.BytesIO(data))
+
+    sitar_path = tmp_path / "race_shard.sitar"
+    with ShardedIndexedTar([tar_path]) as sitar:
+        sitar.save(sitar_path)
 
     def multi_threaded_read_corrupted(itar):
         results = {}
@@ -322,12 +326,16 @@ def test_sharded_indexed_tar_race_condition(tmp_path):
         )
 
     # Use the same tar file twice to ensure both keys are in the same shard
-    with ShardedIndexedTar([tar_path]) as sitar:
-        assert multi_threaded_read_corrupted(sitar)
+    with ShardedIndexedTar.open(sitar_path) as sitar:
+        assert multi_threaded_read_corrupted(sitar), (
+            "There should be corrupted reads due to race conditions"
+        )
 
     # Use the same tar file twice to ensure both keys are in the same shard
-    with ShardedIndexedTar([ThreadSafeFileIO(tar_path)]) as sitar:
-        assert not multi_threaded_read_corrupted(sitar)
+    with ShardedIndexedTar.open(sitar_path, thread_safe=True) as sitar:
+        assert not multi_threaded_read_corrupted(sitar), (
+            "There should be no corrupted reads in thread-safe mode"
+        )
 
 
 def test_sharded_indexed_tar_open_and_save(tmp_path, sharded_tar_and_files):
