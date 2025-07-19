@@ -209,7 +209,7 @@ def test_sharded_indexed_tar_verify_index_raises(sharded_tar_and_files):
     itar = ShardedIndexedTar(
         tar_bytes,
         index={
-            k: (i, (0, 512, 0, None))
+            k: (i, (0, 512, 0))
             for i, files in enumerate(files_ls)
             for k, v in files.items()
         },
@@ -235,10 +235,10 @@ def test_sharded_indexed_tar_build_index(tmp_path):
     tar_bytes = make_sharded_tar_bytes(files_ls)
     itar = ShardedIndexedTar(tar_bytes)
     assert itar.index == {
-        "x.txt": (0, (0, 512, 4, None)),
-        "y.txt": (0, (1024, 1536, 5, None)),
-        "a.txt": (1, (0, 512, 3, None)),
-        "b.txt": (1, (1024, 1536, 3, None)),
+        "x.txt": (0, (0, 512, 4)),
+        "y.txt": (0, (1024, 1536, 5)),
+        "a.txt": (1, (0, 512, 3)),
+        "b.txt": (1, (1024, 1536, 3)),
     }
     assert set(itar.keys()) == set(f for files in files_ls for f in files)
     for files in files_ls:
@@ -277,27 +277,8 @@ def gnu_sparse_tar(tmp_path):
 
 
 def test_threadlocalpreadio_vs_open_with_sparse(gnu_sparse_tar):
-    index = build_tar_index(gnu_sparse_tar)
-    offset, offset_data, size, sparse = index["sparsefile"]
-    assert offset == 0
-    assert offset_data == 512
-    assert size == 10485763
-    assert sparse == [(0, 4096), (10485760, 3), (10485763, 0), (0, 0)]
-
-    # Compare reading with open() and ThreadLocalPreadIO
-    with open(gnu_sparse_tar, "rb") as f1, ThreadLocalPreadIO(gnu_sparse_tar) as f2:
-        # Use tar_file_reader with sparse pattern
-        f1.seek(0)
-        reader1 = tar_file_reader("sparsefile", offset_data, size, sparse, f1)
-        f2.seek(0)
-        reader2 = tar_file_reader("sparsefile", offset_data, size, sparse, f2)
-        data1 = reader1.read()
-        data2 = reader2.read()
-        # The expected data is b"abc" + b"\x00" * (1024-3) + b"def"
-        expected = b"START" + b"\x00" * (1024 * 1024 * 10 - len(b"START")) + b"END"
-        assert data1 == expected
-        assert data2 == expected
-        assert data1 == data2
+    with pytest.raises(NotImplementedError):
+        build_tar_index(gnu_sparse_tar)
 
 
 def test_sharded_indexed_tar_race_condition(tmp_path):
