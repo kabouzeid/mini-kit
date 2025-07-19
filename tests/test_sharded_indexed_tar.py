@@ -1,4 +1,5 @@
 import io
+import os
 import subprocess
 import tarfile
 import threading
@@ -123,6 +124,64 @@ def test_sharded_indexed_tar_symlinks_and_hardlinks():
     # crosslink.txt is a symlink to ../file1.txt (should fail or be empty)
     with pytest.raises(KeyError):
         _ = itar["crosslink.txt"].read()
+
+    itar.close()
+
+
+def test_sharded_indexed_tar_symlinks_and_hardlinks_real_files(tmp_path):
+    # Create a file in shard1
+    file1 = tmp_path / "file1.txt"
+    file1.write_bytes(b"data1")
+
+    # Also create a regular file in shard2
+    (tmp_path / "bar").mkdir()
+    file2 = tmp_path / "bar" / "file2.txt"
+    file2.write_bytes(b"data2")
+
+    # Create a symlink in shard2 pointing to file1 in shard1
+    symlink_path1 = tmp_path / "link1.txt"
+    symlink_path1.symlink_to(
+        os.path.relpath(file1, symlink_path1.parent)
+    )  # symlink to file in another shard
+
+    # Create a symlink in shard2 pointing to file1 in shard1
+    (tmp_path / "foo").mkdir()
+    symlink_path2 = tmp_path / "foo" / "link2.txt"
+    symlink_path2.symlink_to(
+        os.path.relpath(file2, symlink_path2.parent)
+    )  # symlink to file in another shard
+
+    # Create tar archives for each shard
+    tar1_path = tmp_path / "shard1.tar"
+    tar2_path = tmp_path / "shard2.tar"
+    with tarfile.open(tar1_path, "w") as tf:
+        tf.add(file1, arcname=file1.relative_to(tmp_path))
+        tf.add(file2, arcname=file2.relative_to(tmp_path))
+    with tarfile.open(tar2_path, "w") as tf:
+        tf.add(symlink_path1, symlink_path1.relative_to(tmp_path))
+        tf.add(symlink_path2, symlink_path2.relative_to(tmp_path))
+
+    # Open as sharded archive
+    itar = ShardedIndexedTar([tar1_path, tar2_path])
+
+    assert itar.index["link1.txt"][1][2] == "file1.txt"  # symlink to file1.txt
+    assert itar.index["foo/link2.txt"][1][2] == "bar/file2.txt"  # symlink to file2.txt
+
+    # file1.txt should be readable
+    with itar["file1.txt"] as f:
+        assert f.read() == b"data1"
+
+    # file2.txt is a regular file in shard2
+    with itar["bar/file2.txt"] as f:
+        assert f.read() == b"data2"
+
+    # link1.txt is a symlink to file1.txt (in another shard)
+    with itar["link1.txt"] as f:
+        assert f.read() == b"data1"
+
+    # link2.txt is a symlink to file2.txt (in another shard)
+    with itar["foo/link2.txt"] as f:
+        assert f.read() == b"data2"
 
     itar.close()
 
