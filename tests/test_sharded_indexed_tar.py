@@ -6,11 +6,8 @@ import threading
 
 import msgpack
 import pytest
-from mini.itar.sharded_indexed_tar import (
-    ShardedIndexedTar,
-    tar_file_reader,
-)
-from mini.itar.utils import TarIndexError, ThreadLocalPreadIO, build_tar_index
+from mini.itar.sharded_indexed_tar import ShardedIndexedTar
+from mini.itar.utils import TarIndexError, ThreadSafeFileIO, build_tar_index
 
 
 def make_tar_bytes(files):
@@ -329,7 +326,7 @@ def test_sharded_indexed_tar_race_condition(tmp_path):
         assert multi_threaded_read_corrupted(sitar)
 
     # Use the same tar file twice to ensure both keys are in the same shard
-    with ShardedIndexedTar([ThreadLocalPreadIO(tar_path)]) as sitar:
+    with ShardedIndexedTar([ThreadSafeFileIO(tar_path)]) as sitar:
         assert not multi_threaded_read_corrupted(sitar)
 
 
