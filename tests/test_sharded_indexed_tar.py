@@ -3,6 +3,7 @@ import os
 import subprocess
 import tarfile
 import threading
+from functools import partial
 
 import msgpack
 import pytest
@@ -325,14 +326,16 @@ def test_sharded_indexed_tar_race_condition(tmp_path):
             any(d != files[name] for d in datas) for name, datas in results.items()
         )
 
-    # Use the same tar file twice to ensure both keys are in the same shard
-    with ShardedIndexedTar.open(sitar_path) as sitar:
+    # not thread-safe, should have corrupted reads
+    with ShardedIndexedTar.open(
+        sitar_path, open_fn=partial(open, mode="rb", buffering=0)
+    ) as sitar:
         assert multi_threaded_read_corrupted(sitar), (
             "There should be corrupted reads due to race conditions"
         )
 
-    # Use the same tar file twice to ensure both keys are in the same shard
-    with ShardedIndexedTar.open(sitar_path, thread_safe=True) as sitar:
+    # thread-safe, should not have corrupted reads
+    with ShardedIndexedTar.open(sitar_path) as sitar:
         assert not multi_threaded_read_corrupted(sitar), (
             "There should be no corrupted reads in thread-safe mode"
         )
