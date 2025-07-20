@@ -297,9 +297,9 @@ def test_sharded_indexed_tar_race_condition(tmp_path):
             info.size = len(data)
             tf.addfile(info, io.BytesIO(data))
 
-    sitar_path = tmp_path / "race_shard.sitar"
-    with ShardedIndexedTar([tar_path]) as sitar:
-        sitar.save(sitar_path)
+    itar_path = tmp_path / "race_shard.itar"
+    with ShardedIndexedTar([tar_path]) as itar:
+        itar.save(itar_path)
 
     def multi_threaded_read_corrupted(itar):
         results = {}
@@ -328,15 +328,15 @@ def test_sharded_indexed_tar_race_condition(tmp_path):
 
     # not thread-safe, should have corrupted reads
     with ShardedIndexedTar.open(
-        sitar_path, open_fn=partial(open, mode="rb", buffering=0)
-    ) as sitar:
-        assert multi_threaded_read_corrupted(sitar), (
+        itar_path, open_fn=partial(open, mode="rb", buffering=0)
+    ) as itar:
+        assert multi_threaded_read_corrupted(itar), (
             "There should be corrupted reads due to race conditions"
         )
 
     # thread-safe, should not have corrupted reads
-    with ShardedIndexedTar.open(sitar_path) as sitar:
-        assert not multi_threaded_read_corrupted(sitar), (
+    with ShardedIndexedTar.open(itar_path) as itar:
+        assert not multi_threaded_read_corrupted(itar), (
             "There should be no corrupted reads in thread-safe mode"
         )
 
@@ -353,27 +353,27 @@ def test_sharded_indexed_tar_open_and_save(tmp_path, sharded_tar_and_files):
         shard_paths.append(str(path))
 
     # Create ShardedIndexedTar and save the index
-    sitar_path = tmp_path / "archive.sitar"
-    with ShardedIndexedTar(shard_paths) as sitar:
-        sitar.save(sitar_path)
+    itar_path = tmp_path / "archive.itar"
+    with ShardedIndexedTar(shard_paths) as itar:
+        itar.save(itar_path)
 
     # Check that the saved file exists and is a valid msgpack file
-    with open(sitar_path, "rb") as f:
+    with open(itar_path, "rb") as f:
         num_shards, index = msgpack.load(f)
     assert num_shards == len(shard_paths)
     assert isinstance(index, dict)
     assert set(index.keys()) == set(f for files in files_ls for f in files)
 
     # Open the archive using the classmethod and check contents
-    sitar2 = ShardedIndexedTar.open(sitar_path)
-    assert set(sitar2.keys()) == set(f for files in files_ls for f in files)
+    itar2 = ShardedIndexedTar.open(itar_path)
+    assert set(itar2.keys()) == set(f for files in files_ls for f in files)
     for files in files_ls:
         for name, content in files.items():
-            with sitar2[name] as f:
+            with itar2[name] as f:
                 assert f.read() == content
-    sitar2.close()
+    itar2.close()
 
     # Open the archive with explicit shards argument
-    sitar3 = ShardedIndexedTar.open(sitar_path, shards=shard_paths)
-    assert set(sitar3.keys()) == set(f for files in files_ls for f in files)
-    sitar3.close()
+    itar3 = ShardedIndexedTar.open(itar_path, shards=shard_paths)
+    assert set(itar3.keys()) == set(f for files in files_ls for f in files)
+    itar3.close()
