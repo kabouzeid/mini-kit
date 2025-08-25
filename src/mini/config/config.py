@@ -57,7 +57,7 @@ def load_config(path: os.PathLike, params: dict | None = None):
     return config
 
 
-def save_config(config: dict, path: str):
+def save_config(config: dict, path: os.PathLike):
     import black
 
     # we could also use pprint.pformat, but black looks nicer
