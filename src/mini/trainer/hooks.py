@@ -302,6 +302,11 @@ class CheckpointHook(BaseHook):
         self.has_exit_signal_handlers = len(exit_signals) > 0
 
     def on_before_train(self, trainer: BaseTrainer):
+        if self.has_exit_signal_handlers:
+            # micro optimization: allocate signal tensor only once
+            self.exit_signal_tensor = torch.tensor(
+                -1, dtype=torch.int32, device=trainer.device
+            )
         load_path = self.load_path
         if load_path is not None:
             # handles 'latest' and 'step_xxx' checkpoints
@@ -328,9 +333,21 @@ class CheckpointHook(BaseHook):
             trainer.logger.debug(f"Checkpoint contains: {', '.join(state_dict.keys())}")
             trainer.load_state_dict(state_dict)
 
+    def on_before_step(self, trainer: BaseTrainer):
+        if self.has_exit_signal_handlers:
+            self.exit_signal_tensor.fill_(
+                self.exit_signal if self.exit_signal is not None else -1
+            )
+            # micro optimization: reduce async before step and await after step
+            self.exit_signal_work = dist.all_reduce(
+                self.exit_signal_tensor, op=dist.ReduceOp.MAX, async_op=True
+            )
+
     def on_after_step(self, trainer: BaseTrainer):
         if self.has_exit_signal_handlers:
-            self.exit_signal = self._reduce_signal(self.exit_signal, trainer.device)
+            self.exit_signal_work.wait()
+            _sig = self.exit_signal_tensor.item()
+            self.exit_signal = signal.Signals(_sig) if _sig != -1 else None
         if trainer.step % self.interval == 0 or self.exit_signal is not None:
             if self.exit_signal is not None:
                 trainer.logger.info(
@@ -344,16 +361,6 @@ class CheckpointHook(BaseHook):
 
     def on_after_train(self, trainer: BaseTrainer):
         self._save_checkpoint(trainer)
-
-    def _reduce_signal(
-        self, sig: signal.Signals | None, device: torch.device
-    ) -> signal.Signals | None:
-        x = torch.tensor(
-            sig if sig is not None else -1, dtype=torch.int32, device=device
-        )
-        dist.all_reduce(x, op=dist.ReduceOp.MAX)
-        _sig = x.item()
-        return signal.Signals(_sig) if _sig != -1 else None
 
     def _save_checkpoint(self, trainer: BaseTrainer):
         dist.barrier()
