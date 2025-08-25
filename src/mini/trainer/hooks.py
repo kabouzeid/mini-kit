@@ -286,7 +286,9 @@ class CheckpointHook(BaseHook):
         keep: int = 1,
         path: Path | str = "checkpoint",
         load: Path | str | Literal["latest"] | None = "latest",
-        exit_signals: list[signal.Signals] = [signal.SIGUSR1],
+        exit_signals: list[
+            signal.Signals
+        ] = None,  # useful in combination with `sbatch --signal=USR1`
     ):
         assert interval > 0
         assert keep > 0
@@ -297,6 +299,9 @@ class CheckpointHook(BaseHook):
         self.saved_checkpoints = []
 
         self.local_exit_signal: signal.Signals = -1  # not a valid value
+        exit_signals = (
+            exit_signals if exit_signals is not None else []
+        )  # default should be [signal.SIGUSR1], but torchrun doesn't currently support this https://discuss.pytorch.org/t/handling-signals-in-distributed-train-loop/216936/6
         for sig in exit_signals:
             signal.signal(sig, lambda *args: setattr(self, "local_exit_signal", sig))
         self.has_exit_signal_handlers = len(exit_signals) > 0
