@@ -342,16 +342,19 @@ class CheckpointHook(BaseHook):
             )
 
     def on_after_step(self, trainer: BaseTrainer):
+        save_and_exit = False
         if self.has_exit_signal_handlers:
             self.dist_exit_signal_work.wait()
             exit_signal = self.dist_exit_signal.item()
-        if trainer.step % self.interval == 0 or exit_signal != -1:
-            if exit_signal != -1:
+            save_and_exit = exit_signal != -1
+
+        if trainer.step % self.interval == 0 or save_and_exit:
+            if save_and_exit:
                 trainer.logger.info(
                     f"=> Caught signal {exit_signal}. Saving checkpoint before exit"
                 )
             self._save_checkpoint(trainer)
-            if exit_signal != -1:
+            if save_and_exit:
                 dist.barrier()
                 trainer.logger.info("=> Exiting ...")
                 sys.exit(0)
