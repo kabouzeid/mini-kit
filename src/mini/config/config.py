@@ -85,7 +85,11 @@ def deep_merge_dicts(base: dict, override: dict):
     return base
 
 
-def apply_overrides(cfg: dict, overrides: list[str]):
+def parse_params(params: list[str]):
+    return {k: infer_type(v) for k, v in (p.split("=", 1) for p in params)}
+
+
+def parse_and_apply_overrides(cfg: dict, overrides: list[str]):
     for override in overrides:
         if "+=" in override:
             key, value = override.split("+=", 1)
