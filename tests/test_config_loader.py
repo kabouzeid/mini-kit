@@ -116,22 +116,22 @@ def test_param_injection(tmp_path):
         cfg_path,
         """
         from mini.config import param
-        total_steps = param('total_steps', 1000)
+        steps = param('steps', 1000)
         warmup_fraction = 0.1
         config = {
-            'total_steps': total_steps,
-            'warmup_steps': int(total_steps * warmup_fraction),
+            'steps': steps,
+            'warmup_steps': int(steps * warmup_fraction),
         }
         """,
     )
 
     # Without injection we get defaults
     cfg_default = load_config(cfg_path)
-    assert cfg_default == {"total_steps": 1000, "warmup_steps": 100}
+    assert cfg_default == {"steps": 1000, "warmup_steps": 100}
 
     # With injection we override usages consistently
-    cfg_override = load_config(cfg_path, params={"total_steps": 5000})
-    assert cfg_override == {"total_steps": 5000, "warmup_steps": 500}
+    cfg_override = load_config(cfg_path, params={"steps": 5000})
+    assert cfg_override == {"steps": 5000, "warmup_steps": 500}
 
 
 def test_child_param_injection(tmp_path):
@@ -140,11 +140,11 @@ def test_child_param_injection(tmp_path):
         cfg_path,
         """
         from mini.config import param
-        total_steps = param('total_steps', 1000)
+        steps = param('steps', 1000)
         warmup_fraction = 0.1
         config = {
-            'total_steps': total_steps,
-            'warmup_steps': int(total_steps * warmup_fraction),
+            'steps': steps,
+            'warmup_steps': int(steps * warmup_fraction),
         }
         """,
     )
@@ -152,15 +152,15 @@ def test_child_param_injection(tmp_path):
     _write(
         child_cfg_path,
         f"""
-        params = {{'total_steps': 5000}}
+        params = {{'steps': 5000}}
         parents = ['{cfg_path}']
         """,
     )
 
     # Without injection we get defaults
     cfg_default = load_config(cfg_path)
-    assert cfg_default == {"total_steps": 1000, "warmup_steps": 100}
+    assert cfg_default == {"steps": 1000, "warmup_steps": 100}
 
     # With child injection we override usages consistently
     cfg_override = load_config(child_cfg_path)
-    assert cfg_override == {"total_steps": 5000, "warmup_steps": 500}
+    assert cfg_override == {"steps": 5000, "warmup_steps": 500}
