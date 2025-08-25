@@ -296,16 +296,16 @@ class CheckpointHook(BaseHook):
         self.load_path = Path(load) if load is not None else None
         self.saved_checkpoints = []
 
-        self.exit_signal: signal.Signals = -1  # not a valid value
+        self.local_exit_signal: signal.Signals = -1  # not a valid value
         for sig in exit_signals:
-            signal.signal(sig, lambda *args: setattr(self, "exit_signal", sig))
+            signal.signal(sig, lambda *args: setattr(self, "local_exit_signal", sig))
         self.has_exit_signal_handlers = len(exit_signals) > 0
 
     def on_before_train(self, trainer: BaseTrainer):
         if self.has_exit_signal_handlers:
             # micro optimization: allocate signal tensor only once
-            self.exit_signal_tensor = torch.tensor(
-                self.exit_signal, dtype=torch.int32, device=trainer.device
+            self.dist_exit_signal = torch.tensor(
+                self.local_exit_signal, dtype=torch.int32, device=trainer.device
             )
         load_path = self.load_path
         if load_path is not None:
@@ -335,23 +335,23 @@ class CheckpointHook(BaseHook):
 
     def on_before_step(self, trainer: BaseTrainer):
         if self.has_exit_signal_handlers:
-            self.exit_signal_tensor.fill_(self.exit_signal)
+            self.dist_exit_signal.fill_(self.local_exit_signal)
             # micro optimization: reduce async during step and read after step
-            self.exit_signal_work = dist.all_reduce(
-                self.exit_signal_tensor, op=dist.ReduceOp.MAX, async_op=True
+            self.dist_exit_signal_work = dist.all_reduce(
+                self.dist_exit_signal, op=dist.ReduceOp.MAX, async_op=True
             )
 
     def on_after_step(self, trainer: BaseTrainer):
         if self.has_exit_signal_handlers:
-            self.exit_signal_work.wait()
-            self.exit_signal = self.exit_signal_tensor.item()
-        if trainer.step % self.interval == 0 or self.exit_signal != -1:
-            if self.exit_signal != -1:
+            self.dist_exit_signal_work.wait()
+            exit_signal = self.dist_exit_signal.item()
+        if trainer.step % self.interval == 0 or exit_signal != -1:
+            if exit_signal != -1:
                 trainer.logger.info(
-                    f"=> Caught signal {self.exit_signal}. Saving checkpoint before exit"
+                    f"=> Caught signal {exit_signal}. Saving checkpoint before exit"
                 )
             self._save_checkpoint(trainer)
-            if self.exit_signal != -1:
+            if exit_signal != -1:
                 dist.barrier()
                 trainer.logger.info("=> Exiting ...")
                 sys.exit(0)
