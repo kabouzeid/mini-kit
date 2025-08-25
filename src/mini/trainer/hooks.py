@@ -1,4 +1,6 @@
 import shutil
+import signal
+import sys
 import time
 from datetime import timedelta
 from numbers import Number
@@ -284,6 +286,7 @@ class CheckpointHook(BaseHook):
         keep: int = 1,
         path: Path | str = "checkpoint",
         load: Path | str | Literal["latest"] | None = "latest",
+        exit_signals: list[signal.Signals] = [signal.SIGUSR1],
     ):
         assert interval > 0
         assert keep > 0
@@ -292,6 +295,11 @@ class CheckpointHook(BaseHook):
         self.path = Path(path)
         self.load_path = Path(load) if load is not None else None
         self.saved_checkpoints = []
+
+        self.exit_signal: signal.Signals | None = None
+        for sig in exit_signals:
+            signal.signal(sig, lambda *args: setattr(self, "exit_signal", sig))
+        self.has_exit_signal_handlers = len(exit_signals) > 0
 
     def on_before_train(self, trainer: BaseTrainer):
         load_path = self.load_path
@@ -321,50 +329,76 @@ class CheckpointHook(BaseHook):
             trainer.load_state_dict(state_dict)
 
     def on_after_step(self, trainer: BaseTrainer):
-        if trainer.step % self.interval == 0 or trainer.step == trainer.max_steps:
-            dist.barrier()
+        if self.has_exit_signal_handlers:
+            self.exit_signal = self._reduce_signal(self.exit_signal, trainer.device)
+        if trainer.step % self.interval == 0 or self.exit_signal is not None:
+            if self.exit_signal is not None:
+                trainer.logger.info(
+                    f"=> Caught signal {self.exit_signal}. Saving checkpoint before exit"
+                )
+            self._save_checkpoint(trainer)
+            if self.exit_signal is not None:
+                dist.barrier()
+                trainer.logger.info("=> Exiting ...")
+                sys.exit(0)
 
-            state_dict = trainer.state_dict()
+    def on_after_train(self, trainer: BaseTrainer):
+        self._save_checkpoint(trainer)
 
-            # TODO: all rank gathered states
-            # gathered_random_states = [None] * dist.get_world_size()
-            # dist.gather_object(
-            #     get_random_state(),
-            #     gathered_random_states if dist.get_rank() == 0 else None,
-            #     dst=0,
-            # )
+    def _reduce_signal(
+        self, sig: signal.Signals | None, device: torch.device
+    ) -> signal.Signals | None:
+        x = torch.tensor(
+            sig if sig is not None else -1, dtype=torch.int32, device=device
+        )
+        dist.all_reduce(x, op=dist.ReduceOp.MAX)
+        _sig = x.item()
+        return signal.Signals(_sig) if _sig != -1 else None
 
-            if dist.get_rank() == 0:
-                # make dir
-                save_path = self.path / f"step_{trainer.step}"
-                if not save_path.is_absolute():
-                    assert trainer.workspace is not None
-                    save_path = trainer.workspace / save_path
-                trainer.logger.info(f"=> Saving checkpoint to {save_path}")
-                save_path.mkdir(parents=True, exist_ok=True)
+    def _save_checkpoint(self, trainer: BaseTrainer):
+        dist.barrier()
 
-                # save
-                for name, sub_state_dict in state_dict.items():
-                    torch.save(sub_state_dict, save_path / f"{name}.pt")
+        state_dict = trainer.state_dict()
 
-                # symlink latest
-                latest_symlink = save_path.parent / "latest"
-                if latest_symlink.is_symlink():
-                    latest_symlink.unlink()
-                elif latest_symlink.exists():
-                    trainer.logger.warning(
-                        f"{latest_symlink} already exists and is not a symlink."
-                    )
-                latest_symlink.symlink_to(save_path.name, target_is_directory=True)
+        # TODO: all rank gathered states
+        # gathered_random_states = [None] * dist.get_world_size()
+        # dist.gather_object(
+        #     get_random_state(),
+        #     gathered_random_states if dist.get_rank() == 0 else None,
+        #     dst=0,
+        # )
 
-                # clean up old checkpoints
-                self.saved_checkpoints.append(save_path)
-                while len(self.saved_checkpoints) > self.keep:
-                    to_remove = self.saved_checkpoints.pop(0)
-                    try:
-                        shutil.rmtree(to_remove)
-                    except OSError as e:
-                        trainer.logger.warning(f"Could not remove {to_remove}: {e}")
+        if dist.get_rank() == 0:
+            # make dir
+            save_path = self.path / f"step_{trainer.step}"
+            if not save_path.is_absolute():
+                assert trainer.workspace is not None
+                save_path = trainer.workspace / save_path
+            trainer.logger.info(f"=> Saving checkpoint to {save_path}")
+            save_path.mkdir(parents=True, exist_ok=True)
+
+            # save
+            for name, sub_state_dict in state_dict.items():
+                torch.save(sub_state_dict, save_path / f"{name}.pt")
+
+            # symlink latest
+            latest_symlink = save_path.parent / "latest"
+            if latest_symlink.is_symlink():
+                latest_symlink.unlink()
+            elif latest_symlink.exists():
+                trainer.logger.warning(
+                    f"{latest_symlink} already exists and is not a symlink."
+                )
+            latest_symlink.symlink_to(save_path.name, target_is_directory=True)
+
+            # clean up old checkpoints
+            self.saved_checkpoints.append(save_path)
+            while len(self.saved_checkpoints) > self.keep:
+                to_remove = self.saved_checkpoints.pop(0)
+                try:
+                    shutil.rmtree(to_remove)
+                except OSError as e:
+                    trainer.logger.warning(f"Could not remove {to_remove}: {e}")
 
 
 class CudaMaxMemoryHook(BaseHook):
