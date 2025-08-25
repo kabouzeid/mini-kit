@@ -2,21 +2,40 @@ import ast
 import importlib.util
 import re
 import sys
+from contextvars import ContextVar
 from functools import reduce
 from pathlib import Path
+from typing import TypeVar
+
+_params_ctx: ContextVar[dict] = ContextVar("mini_config_params", default={})
+
+T = TypeVar("T")
 
 
-def load_merged_config(paths: list[Path]):
-    return reduce(deep_merge_dicts, (load_config(p) for p in paths))
+def param(name: str, default: T) -> T:
+    """Return injected variable value or provided default.
+
+    Usage inside config python file:
+        from mini.config import param
+        total_steps = param("total_steps", 10000)
+    """
+    return _params_ctx.get().get(name, default)
 
 
-def load_config(path):
+def load_merged_config(paths: list[Path], params: dict | None = None):
+    return reduce(deep_merge_dicts, (load_config(p, params) for p in paths))
+
+
+def load_config(path, params: dict | None = None):
     path = Path(path).resolve()
     spec = importlib.util.spec_from_file_location("config_module", path)
     config_module = importlib.util.module_from_spec(spec)
     sys.modules["config_module"] = config_module
-    spec.loader.exec_module(config_module)
-
+    token = _params_ctx.set(params or {})
+    try:
+        spec.loader.exec_module(config_module)
+    finally:
+        _params_ctx.reset(token)
     config = getattr(config_module, "config", {})
     parents = getattr(config_module, "parents", None)
     delete = getattr(config_module, "delete", [])
@@ -24,7 +43,9 @@ def load_config(path):
     if isinstance(parents, str):
         parents = [parents]
     if parents:
-        parent_config = load_merged_config([path.parent / Path(p) for p in parents])
+        parent_config = load_merged_config(
+            [path.parent / Path(p) for p in parents], params
+        )
         for key in delete:
             delete_nested(parent_config, parse_key_path(key))
         config = deep_merge_dicts(parent_config, config)

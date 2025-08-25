@@ -108,3 +108,27 @@ def test_load_merged_config_order(tmp_path):
 
     merged = load_merged_config([a, b])
     assert merged == {"a": 1, "b": 3, "c": 4}
+
+
+def test_variable_injection_param_helper(tmp_path):
+    cfg_path = tmp_path / "cfg.py"
+    _write(
+        cfg_path,
+        """
+        from mini.config import param
+        total_steps = param('total_steps', 1000)
+        warmup_fraction = 0.1
+        config = {
+            'total_steps': total_steps,
+            'warmup_steps': int(total_steps * warmup_fraction),
+        }
+        """,
+    )
+
+    # Without injection we get defaults
+    cfg_default = load_config(cfg_path)
+    assert cfg_default == {"total_steps": 1000, "warmup_steps": 100}
+
+    # With injection we override usages consistently
+    cfg_override = load_config(cfg_path, params={"total_steps": 5000})
+    assert cfg_override == {"total_steps": 5000, "warmup_steps": 500}
