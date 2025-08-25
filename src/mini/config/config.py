@@ -1,5 +1,6 @@
 import ast
 import importlib.util
+import os
 import re
 import sys
 from contextvars import ContextVar
@@ -23,11 +24,11 @@ def param(name: str, default: T) -> T:
     return _params_ctx.get().get(name, default)
 
 
-def load_merged_config(paths: list[Path], params: dict | None = None):
+def load_merged_config(paths: list[os.PathLike], params: dict | None = None):
     return reduce(deep_merge_dicts, (load_config(p, params) for p in paths))
 
 
-def load_config(path, params: dict | None = None):
+def load_config(path: os.PathLike, params: dict | None = None):
     path = Path(path).resolve()
     spec = importlib.util.spec_from_file_location("config_module", path)
     config_module = importlib.util.module_from_spec(spec)
@@ -74,7 +75,7 @@ def format_config(config: dict) -> str:
     return black.format_str(repr(config), mode=black.Mode())
 
 
-def deep_merge_dicts(base, override):
+def deep_merge_dicts(base: dict, override: dict):
     base = dict(base)
     for k, v in override.items():
         if k in base and isinstance(base[k], dict) and isinstance(v, dict):
@@ -84,7 +85,7 @@ def deep_merge_dicts(base, override):
     return base
 
 
-def apply_overrides(cfg, overrides):
+def apply_overrides(cfg: dict, overrides: list[str]):
     for override in overrides:
         if "+=" in override:
             key, value = override.split("+=", 1)
@@ -105,7 +106,7 @@ def apply_overrides(cfg, overrides):
     return cfg
 
 
-def parse_key_path(path):
+def parse_key_path(path: str):
     """Parse 'a.b[0].c' → ['a', 'b', 0, 'c']"""
     tokens = []
     parts = re.split(r"(\[-?\d+\]|\.)", path)
@@ -119,7 +120,7 @@ def parse_key_path(path):
     return tokens
 
 
-def set_nested(d, keys, value):
+def set_nested(d: dict, keys, value):
     for i, key in enumerate(keys):
         is_last = i == len(keys) - 1
         if isinstance(key, int):
@@ -140,7 +141,7 @@ def set_nested(d, keys, value):
                 d = d[key]
 
 
-def append_to_nested(d, keys, value):
+def append_to_nested(d: dict, keys, value):
     for i, key in enumerate(keys):
         is_last = i == len(keys) - 1
         next_key_type = type(keys[i + 1]) if not is_last else None
@@ -169,7 +170,7 @@ def append_to_nested(d, keys, value):
                 d = d[key]
 
 
-def delete_nested(d, keys):
+def delete_nested(d: dict, keys):
     for i, key in enumerate(keys[:-1]):
         d = d[key]
     last_key = keys[-1]
@@ -180,14 +181,14 @@ def delete_nested(d, keys):
         d.pop(last_key, None)
 
 
-def remove_value_from_list(d, keys, value):
+def remove_value_from_list(d: dict, keys, value):
     for key in keys:
         d = d[key]
     if isinstance(d, list) and value in d:
         d.remove(value)
 
 
-def infer_type(val):
+def infer_type(val: str):
     try:
         return ast.literal_eval(val)
     except (ValueError, SyntaxError):
