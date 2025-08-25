@@ -7,6 +7,7 @@ from functools import reduce
 from pathlib import Path
 from typing import TypeVar
 
+# Just in case: we use a ContextVar instead of a plain global, so injected params stay local per thread / async task.
 _params_ctx: ContextVar[dict] = ContextVar("mini_config_params", default={})
 
 T = TypeVar("T")
@@ -31,13 +32,15 @@ def load_config(path, params: dict | None = None):
     spec = importlib.util.spec_from_file_location("config_module", path)
     config_module = importlib.util.module_from_spec(spec)
     sys.modules["config_module"] = config_module
-    token = _params_ctx.set(params or {})
+    params = params or {}
+    token = _params_ctx.set(params)
     try:
         spec.loader.exec_module(config_module)
     finally:
         _params_ctx.reset(token)
     config = getattr(config_module, "config", {})
     parents = getattr(config_module, "parents", None)
+    params = getattr(config_module, "params", {}) | params
     delete = getattr(config_module, "delete", [])
 
     if isinstance(parents, str):
