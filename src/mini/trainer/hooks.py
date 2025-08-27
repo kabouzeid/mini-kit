@@ -289,12 +289,9 @@ class CheckpointHook(BaseHook):
         keep: int = 1,
         path: Path | str = "checkpoint",
         load: Path | str | Literal["latest"] | None = "latest",
-        exit_signals: list[signal.Signals]
-        | signal.Signals = None,  # useful in combination with `sbatch --signal=USR1`
-        exit_code: int
-        | Literal[
-            "128+signal"
-        ] = "128+signal",  # UNIX convention is to exit with 128 + signal_number if the process was killed by a signal
+        exit_signals: list[signal.Signals] | signal.Signals = None,
+        exit_code: int | Literal["128+signal"] = "128+signal",
+        exit_wait: timedelta | float = 0.0,
     ):
         assert interval > 0
         assert keep > 0
@@ -312,6 +309,9 @@ class CheckpointHook(BaseHook):
             signal.signal(sig, lambda *args: setattr(self, "local_exit_signal", sig))
         self.has_exit_signal_handlers = len(exit_signals) > 0
         self.exit_code = exit_code
+        self.exit_wait = (
+            exit_wait.total_seconds() if isinstance(exit_wait, timedelta) else exit_wait
+        )
 
     def on_before_train(self, trainer: BaseTrainer):
         if self.has_exit_signal_handlers:
@@ -334,7 +334,7 @@ class CheckpointHook(BaseHook):
                 )
                 return
 
-            trainer.logger.info(f"=> Loading checkpoint from {load_path}")
+            trainer.logger.info(f"=> Loading checkpoint from {load_path} ...")
             state_dict = {
                 file.with_suffix("").name: torch.load(
                     file, map_location=trainer.device, weights_only=True
@@ -368,17 +368,23 @@ class CheckpointHook(BaseHook):
         ):
             if save_and_exit:
                 trainer.logger.info(
-                    f"=> Caught signal {exit_signal}. Saving checkpoint before exit"
+                    f"=> Caught signal {exit_signal}. Saving checkpoint before exit ..."
                 )
             self._save_checkpoint(trainer)
             if save_and_exit:
                 dist.barrier()
-                trainer.logger.info("=> Exiting ...")
-                sys.exit(
+                if self.exit_wait > 0:
+                    trainer.logger.info(
+                        f"=> Waiting {self.exit_wait:.0f} seconds before exit ..."
+                    )
+                    time.sleep(self.exit_wait)  # try wait for the Slurm job timeout
+                exit_code = (
                     128 + exit_signal
                     if self.exit_code == "128+signal"
-                    else self.exit_code
+                    else sys.exit(self.exit_code)
                 )
+                trainer.logger.info(f"=> Exiting (code: {exit_code})")
+                sys.exit(exit_code)
 
     def _save_checkpoint(self, trainer: BaseTrainer):
         dist.barrier()
@@ -399,7 +405,7 @@ class CheckpointHook(BaseHook):
             if not save_path.is_absolute():
                 assert trainer.workspace is not None
                 save_path = trainer.workspace / save_path
-            trainer.logger.info(f"=> Saving checkpoint to {save_path}")
+            trainer.logger.info(f"=> Saving checkpoint to {save_path} ...")
             save_path.mkdir(parents=True, exist_ok=True)
 
             # save
