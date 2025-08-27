@@ -288,7 +288,7 @@ class CheckpointHook(BaseHook):
         load: Path | str | Literal["latest"] | None = "latest",
         exit_signals: list[signal.Signals]
         | signal.Signals = None,  # useful in combination with `sbatch --signal=USR1`
-        exit_signal_code: int
+        exit_code: int
         | Literal[
             "128+signal"
         ] = "128+signal",  # UNIX convention is to exit with 128 + signal_number if the process was killed by a signal
@@ -308,7 +308,7 @@ class CheckpointHook(BaseHook):
         for sig in exit_signals:
             signal.signal(sig, lambda *args: setattr(self, "local_exit_signal", sig))
         self.has_exit_signal_handlers = len(exit_signals) > 0
-        self.exit_signal_code = exit_signal_code
+        self.exit_code = exit_code
 
     def on_before_train(self, trainer: BaseTrainer):
         if self.has_exit_signal_handlers:
@@ -368,8 +368,8 @@ class CheckpointHook(BaseHook):
                 trainer.logger.info("=> Exiting ...")
                 sys.exit(
                     128 + exit_signal
-                    if self.exit_signal_code == "128+signal"
-                    else self.exit_signal_code
+                    if self.exit_code == "128+signal"
+                    else self.exit_code
                 )
 
     def on_after_train(self, trainer: BaseTrainer):
