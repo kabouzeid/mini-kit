@@ -102,6 +102,10 @@ def _instantiate(cfg: Dict[str, Any], registry: Registry | None = None) -> Any:
     cfg = cfg.copy()
     obj_type = cfg.pop("type")
 
+    partial_prefix = "partial:"
+    partial = obj_type.startswith(partial_prefix)
+    obj_type = obj_type.removeprefix(partial_prefix)
+
     if registry and registry.get(obj_type):
         obj = registry.get(obj_type)
     else:
@@ -109,13 +113,7 @@ def _instantiate(cfg: Dict[str, Any], registry: Registry | None = None) -> Any:
         module = importlib.import_module(module_path)
         obj = getattr(module, obj_name)
 
-    # NOTE: this is an opinionated design choice that should cover most use cases:
-    # types are instantiated, while functions are only partially applied
-    if isinstance(obj, type):
-        return obj(**cfg)
-    elif callable(obj):
+    if partial:
         return functools.partial(obj, **cfg)
     else:
-        raise TypeError(
-            f"Resolved object '{obj_type}' is neither a class nor a callable."
-        )
+        return obj(**cfg)

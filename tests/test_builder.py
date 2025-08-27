@@ -1,7 +1,7 @@
+import functools
 from types import SimpleNamespace
 
 import pytest
-
 from mini.builder import REGISTRY, Registry, build_from_cfg
 
 
@@ -22,6 +22,11 @@ class Tree:
     def __init__(self, root, name):
         self.root = root
         self.name = name
+
+
+@REGISTRY.register()
+def add(a, b, scale):
+    return (a + b) * scale
 
 
 def test_simple_instantiation():
@@ -72,6 +77,30 @@ def test_module_path_instantiation():
     obj = build_from_cfg(cfg, recursive=True)  # no registry
     assert isinstance(obj, SimpleNamespace)
     assert obj.x == 42
+
+
+def test_instantiate_partial_function_from_registry():
+    part = build_from_cfg({"type": "partial:add", "scale": 3}, registry=REGISTRY)
+    assert isinstance(part, functools.partial)
+    assert part.func is add
+    assert part(2, 4) == (2 + 4) * 3  # 18
+
+
+def test_instantiate_partial_class_from_module_path():
+    part = build_from_cfg(
+        {"type": "partial:types.SimpleNamespace", "x": 5}, registry=REGISTRY
+    )
+    assert isinstance(part, functools.partial)
+    obj = part(y=9)
+    assert obj.x == 5 and obj.y == 9
+
+
+def test_instantiate_partial_class_from_registry():
+    part = build_from_cfg({"type": "partial:Tree", "name": "foo"}, registry=REGISTRY)
+    assert isinstance(part, functools.partial)
+    inst = part(root="bar")
+    assert isinstance(inst, Tree)
+    assert inst.root == "bar" and inst.name == "foo"
 
 
 def test_missing_type_key():
