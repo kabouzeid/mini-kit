@@ -5,7 +5,7 @@ import time
 from datetime import timedelta
 from numbers import Number
 from pathlib import Path
-from typing import Any, Callable, Literal, Sequence
+from typing import Any, Callable, Iterable, Literal, Sequence
 
 import torch
 import torch.distributed as dist
@@ -286,9 +286,12 @@ class CheckpointHook(BaseHook):
         keep: int = 1,
         path: Path | str = "checkpoint",
         load: Path | str | Literal["latest"] | None = "latest",
-        exit_signals: list[
-            signal.Signals
-        ] = None,  # useful in combination with `sbatch --signal=USR1`
+        exit_signals: list[signal.Signals]
+        | signal.Signals = None,  # useful in combination with `sbatch --signal=USR1`
+        exit_signal_code: int
+        | Literal[
+            "128+signal"
+        ] = "128+signal",  # UNIX convention is to exit with 128 + signal_number if the process was killed by a signal
     ):
         assert interval > 0
         assert keep > 0
@@ -299,12 +302,13 @@ class CheckpointHook(BaseHook):
         self.saved_checkpoints = []
 
         self.local_exit_signal: signal.Signals = -1  # not a valid value
-        exit_signals = (
-            exit_signals if exit_signals is not None else []
-        )  # default should be [signal.SIGUSR1], but torchrun doesn't currently support this https://discuss.pytorch.org/t/handling-signals-in-distributed-train-loop/216936/6
+        exit_signals = exit_signals if exit_signals is not None else []
+        if not isinstance(exit_signals, Iterable):
+            exit_signals = [exit_signals]
         for sig in exit_signals:
             signal.signal(sig, lambda *args: setattr(self, "local_exit_signal", sig))
         self.has_exit_signal_handlers = len(exit_signals) > 0
+        self.exit_signal_code = exit_signal_code
 
     def on_before_train(self, trainer: BaseTrainer):
         if self.has_exit_signal_handlers:
@@ -362,7 +366,11 @@ class CheckpointHook(BaseHook):
             if save_and_exit:
                 dist.barrier()
                 trainer.logger.info("=> Exiting ...")
-                sys.exit(0)
+                sys.exit(
+                    128 + exit_signal
+                    if self.exit_signal_code == "128+signal"
+                    else self.exit_signal_code
+                )
 
     def on_after_train(self, trainer: BaseTrainer):
         self._save_checkpoint(trainer)
