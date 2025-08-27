@@ -193,6 +193,13 @@ class ProgressHook(_StatsHook):
         super().on_after_train(trainer)
         trainer.logger.info("=> Finished training")
 
+    def on_before_step(self, trainer: BaseTrainer):
+        super().on_before_step(trainer)
+        self.lrs = [
+            (i, param_group["lr"])
+            for i, param_group in enumerate(trainer.optimizer.param_groups)
+        ]  # record the LR before the scheduler steps
+
     def on_after_step(self, trainer: BaseTrainer):
         self.eta_tracker.step()  # should be called before process_stats
         super().on_after_step(trainer)
@@ -208,10 +215,6 @@ class ProgressHook(_StatsHook):
         records: Records,
     ):
         eta = self.eta_tracker.get_eta()
-        lrs = [
-            (i, param_group["lr"])
-            for i, param_group in enumerate(trainer.optimizer.param_groups)
-        ]
         trainer.logger.info(
             f"Step {trainer.step:>{len(str(trainer.max_steps))}}/{trainer.max_steps}:"
             + f" step {step_time:.4f}s data {data_time:.4f}s"
@@ -219,7 +222,7 @@ class ProgressHook(_StatsHook):
             + (f" mem {max_memory:#.3g}GiB" if max_memory is not None else "")
             + f" loss {loss:.4f}"
             + (f" grad_norm {grad_norm:.4f}" if grad_norm is not None else "")
-            + (" " + " ".join(f"lr_{i} {lr:.2e}" for i, lr in lrs))
+            + (" " + " ".join(f"lr_{i} {lr:.2e}" for i, lr in self.lrs))
             + (
                 (
                     " | "
