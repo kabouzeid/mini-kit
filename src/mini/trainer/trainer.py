@@ -213,7 +213,8 @@ class BaseTrainer:
                         # Since `Trainer.forward` may also return None before calling `DDP.forward`, this is just a warning rather than an error.
                         # I think the same thing applies to FSDP, but I haven't confirmed it.
                         warnings.warn(
-                            "Loss is None; skipping backward step. Ensure self.model.forward was not called in self.forward to avoid undefined behavior in DDP and FSDP."
+                            "Loss is None; skipping backward step. Ensure self.model.forward was not called in self.forward to avoid undefined behavior in DDP and FSDP.",
+                            LossNoneWarning,
                         )
                     continue  # skip the backward & optimizer step
                 if not torch.isfinite(
@@ -361,3 +362,7 @@ def map_nested_tensor(f: Callable[[torch.Tensor], Any], obj: Any):
         return type(obj)((k, map_nested_tensor(f, v)) for k, v in obj.items())
     else:
         return obj
+
+
+class LossNoneWarning(UserWarning):
+    pass

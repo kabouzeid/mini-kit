@@ -8,7 +8,7 @@ from .hooks import (
     ProgressHook,
     WandbHook,
 )
-from .trainer import BaseTrainer, map_nested_tensor
+from .trainer import BaseTrainer, LossNoneWarning, map_nested_tensor
 
 __all__ = [
     "BaseHook",
@@ -20,5 +20,6 @@ __all__ = [
     "WandbHook",
     "ImageFileLoggerHook",
     "BaseTrainer",
+    "LossNoneWarning",
     "map_nested_tensor",
 ]
