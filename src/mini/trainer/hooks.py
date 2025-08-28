@@ -1,6 +1,8 @@
+import os
 import shutil
 import signal
 import sys
+import tempfile
 import time
 from datetime import timedelta
 from numbers import Number
@@ -286,7 +288,8 @@ class CheckpointHook(BaseHook):
     def __init__(
         self,
         interval: int,
-        keep: int = 1,
+        keep_previous: int = 0,  # keep N previous checkpoints
+        keep_every: int = 0,  # keep checkpoints of every N-th step
         path: Path | str = "checkpoint",
         load: Path | str | Literal["latest"] | None = "latest",
         exit_signals: list[signal.Signals] | signal.Signals = None,
@@ -294,12 +297,12 @@ class CheckpointHook(BaseHook):
         exit_wait: timedelta | float = 0.0,
     ):
         assert interval > 0
-        assert keep > 0
+        assert keep_previous >= 0
         self.interval = interval
-        self.keep = keep
+        self.keep_previous = keep_previous
+        self.keep_every = keep_every
         self.path = Path(path)
         self.load_path = Path(load) if load is not None else None
-        self.saved_checkpoints = []
 
         self.local_exit_signal: signal.Signals = -1  # not a valid value
         exit_signals = exit_signals if exit_signals is not None else []
@@ -321,7 +324,7 @@ class CheckpointHook(BaseHook):
             )
         load_path = self.load_path
         if load_path is not None:
-            # handles 'latest' and 'step_xxx' checkpoints
+            # handles 'latest' and regular checkpoints
             if len(load_path.parts) == 1 and not load_path.is_absolute():
                 load_path = self.path / load_path
                 if not load_path.is_absolute():
@@ -370,7 +373,10 @@ class CheckpointHook(BaseHook):
                 trainer.logger.info(
                     f"=> Caught signal {exit_signal}. Saving checkpoint before exit ..."
                 )
-            self._save_checkpoint(trainer)
+            self._save_checkpoint(
+                trainer,
+                keep=self.keep_every > 0 and trainer.step % self.keep_every == 0,
+            )
             if save_and_exit:
                 dist.barrier()
                 if self.exit_wait > 0:
@@ -386,7 +392,13 @@ class CheckpointHook(BaseHook):
                 trainer.logger.info(f"=> Exiting (code: {exit_code})")
                 sys.exit(exit_code)
 
-    def _save_checkpoint(self, trainer: BaseTrainer):
+    def _save_checkpoint(self, trainer: BaseTrainer, keep: bool):
+        """Save a model checkpoint.
+
+        Raises only if writing the current checkpoint fails. Issues encountered
+        while retaining or pruning older checkpoints are logged but not raised.
+        """
+
         dist.barrier()
 
         state_dict = trainer.state_dict()
@@ -401,35 +413,93 @@ class CheckpointHook(BaseHook):
 
         if dist.get_rank() == 0:
             # make dir
-            save_path = self.path / f"step_{trainer.step}"
+            save_path = self.path / str(trainer.step)
             if not save_path.is_absolute():
                 assert trainer.workspace is not None
                 save_path = trainer.workspace / save_path
+            save_path.parent.mkdir(parents=True, exist_ok=True)
             trainer.logger.info(f"=> Saving checkpoint to {save_path} ...")
-            save_path.mkdir(parents=True, exist_ok=True)
 
             # save
+            tmp_save_path = self._get_tmp_save_dir(save_path)
             for name, sub_state_dict in state_dict.items():
-                torch.save(sub_state_dict, save_path / f"{name}.pt")
+                torch.save(sub_state_dict, tmp_save_path / f"{name}.pt")
+            tmp_save_path.rename(save_path)
 
             # symlink latest
             latest_symlink = save_path.parent / "latest"
             if latest_symlink.is_symlink():
                 latest_symlink.unlink()
-            elif latest_symlink.exists():
-                trainer.logger.warning(
-                    f"{latest_symlink} already exists and is not a symlink."
+            if latest_symlink.exists():
+                trainer.logger.error(
+                    f"{latest_symlink} already exists and is not a symlink. Will not create 'latest' symlink."
                 )
-            latest_symlink.symlink_to(save_path.name, target_is_directory=True)
+            else:
+                latest_symlink.symlink_to(save_path.name, target_is_directory=True)
 
-            # clean up old checkpoints
-            self.saved_checkpoints.append(save_path)
-            while len(self.saved_checkpoints) > self.keep:
-                to_remove = self.saved_checkpoints.pop(0)
+            if keep:
+                keep_path = save_path.with_name(save_path.name + "_keep")
+                trainer.logger.info(
+                    f"=> Marking checkpoint for keeping {keep_path} ..."
+                )
+                # retain checkpoint via symlink
                 try:
-                    shutil.rmtree(to_remove)
-                except OSError as e:
-                    trainer.logger.warning(f"Could not remove {to_remove}: {e}")
+                    save_path.rename(keep_path)
+                    save_path.symlink_to(keep_path.name, target_is_directory=True)
+                except Exception:
+                    trainer.logger.exception(
+                        f"Could not rename/symlink checkpoint for keeping {keep_path} ..."
+                    )
+                # # retain checkpoint via hard-linked copy (saves space, survives pruning of original)
+                # try:
+                #     shutil.copytree(save_path, keep_path, copy_function=os.link)
+                # except Exception:
+                #     trainer.logger.exception(
+                #         f"Could not copy checkpoint for keeping {keep_path} ..."
+                #     )
+
+            # prune
+            prev_ckpts = sorted(
+                [
+                    p
+                    for p in save_path.parent.iterdir()
+                    if p.is_dir()
+                    and self._is_int(p.name)
+                    and int(p.name) < trainer.step
+                ],
+                key=lambda p: int(p.name),
+            )
+            for p in (
+                prev_ckpts[: -self.keep_previous]
+                if self.keep_previous > 0
+                else prev_ckpts
+            ):
+                trainer.logger.info(f"=> Pruning checkpoint {p} ...")
+                try:
+                    if p.is_symlink():
+                        p.unlink()
+                    else:
+                        shutil.rmtree(p)
+                except Exception:
+                    trainer.logger.exception(f"Could not remove {p}")
+
+    @staticmethod
+    def _get_tmp_save_dir(path: Path):
+        mask = os.umask(0)  # only way to get the umask is to set it
+        os.umask(mask)
+        tmp_save_path = Path(
+            tempfile.mkdtemp(prefix=path.name + ".tmp.", dir=path.parent)
+        )
+        os.chmod(tmp_save_path, 0o777 & ~mask)  # set default mkdir permissions
+        return tmp_save_path
+
+    @staticmethod
+    def _is_int(s: str):
+        try:
+            int(s)  # let's make absolutely sure that constructing and int will work
+            return str.isdecimal(s)  # this filters out stuff like '+3' and '-3'
+        except ValueError:
+            return False
 
 
 class CudaMaxMemoryHook(BaseHook):
@@ -549,12 +619,7 @@ class ImageFileLoggerHook(BaseHook):
     def on_log_images(self, trainer: BaseTrainer, records: dict, dry_run: bool = False):
         if dist.get_rank() == 0:
             for k, img in flatten_nested_dict(records).items():
-                p = (
-                    trainer.workspace
-                    / "visualizations"
-                    / f"step_{trainer.step}"
-                    / Path(*k)
-                )
+                p = trainer.workspace / "visualizations" / str(trainer.step) / Path(*k)
                 p = Path(str(p) + "." + self.image_format(k[-1]))
                 if not dry_run:
                     p.parent.mkdir(parents=True, exist_ok=True)
