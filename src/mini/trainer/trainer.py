@@ -35,7 +35,7 @@ class BaseTrainer:
         grad_clip: float | None,
         max_non_finite_grad_retries: int | None,
         mixed_precision: str | None,
-        accumulate: int | None,
+        gradient_accumulation_steps: int | None,
         workspace: Path | str | None,
         logger: Logger,
         device: torch.device | int,
@@ -56,7 +56,7 @@ class BaseTrainer:
             case _:
                 raise ValueError(f"Unsupported mixed precision: {mixed_precision}")
         self.device = torch.device(device)  # in case device is an int
-        self.accumulate = accumulate or 1
+        self.gradient_accumulation_steps = gradient_accumulation_steps or 1
         self.workspace = Path(workspace) if workspace is not None else None
         self.logger = logger
         self.no_sync_accumulate = no_sync_accumulate
@@ -176,8 +176,8 @@ class BaseTrainer:
         self.step_info["data_time"] = []
         non_finite_grad_retry_count = 0
         i_acc = 0
-        while i_acc < self.accumulate:
-            is_accumulating = i_acc < self.accumulate - 1
+        while i_acc < self.gradient_accumulation_steps:
+            is_accumulating = i_acc < self.gradient_accumulation_steps - 1
             no_sync_accumulate = (
                 self.model.no_sync()
                 if self.no_sync_accumulate
@@ -228,7 +228,7 @@ class BaseTrainer:
 
                 self.step_info["loss"].append(loss.detach())
                 self.step_info["records"].append(records)
-                loss = loss / self.accumulate
+                loss = loss / self.gradient_accumulation_steps
                 self.logger.debug(f"{self.step}-{i_acc} backward()")
                 self.grad_scaler.scale(loss).backward()
                 i_acc += 1  # only increment after an actual backward pass
