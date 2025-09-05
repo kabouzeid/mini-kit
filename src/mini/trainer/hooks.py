@@ -239,7 +239,7 @@ class ProgressHook(_StatsHook):
         )
 
 
-class LoggerHook(_StatsHook):
+class LoggingHook(_StatsHook):
     """
     Log aggregated training statistics and records to a `log(records: dict[str, Any])` method defined in the trainer.
     """
@@ -280,7 +280,7 @@ class LoggerHook(_StatsHook):
         )
 
 
-class CheckpointHook(BaseHook):
+class CheckpointingHook(BaseHook):
     """
     Save checkpoints at regular intervals. The latest checkpoint is always saved as a symlink.
     """
