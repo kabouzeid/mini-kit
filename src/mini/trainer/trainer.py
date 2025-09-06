@@ -38,7 +38,7 @@ class BaseTrainer:
         gradient_accumulation_steps: int | None,
         workspace: Path | str | None,
         logger: Logger,
-        device: torch.device | int,
+        device: torch.device | str | int,
         no_sync_accumulate: bool = True,  # can make sense to disable this for FSDP
         state_dict_options: StateDictOptions | None = None,
     ):
@@ -55,7 +55,7 @@ class BaseTrainer:
                 self.mixed_precision = None
             case _:
                 raise ValueError(f"Unsupported mixed precision: {mixed_precision}")
-        self.device = torch.device(device)  # in case device is an int
+        self.device = torch.device(device)
         self.gradient_accumulation_steps = gradient_accumulation_steps or 1
         self.workspace = Path(workspace) if workspace is not None else None
         self.logger = logger
