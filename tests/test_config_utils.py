@@ -1,9 +1,9 @@
 import pytest
 from mini.config.config import (
-    parse_key_path,
+    apply_overrides,
     infer_type,
+    parse_key_path,
     set_nested,
-    parse_and_apply_overrides,
 )
 
 ### --- parse_key_path tests --- ###
@@ -79,21 +79,21 @@ def test_set_nested_last_list_index():
 def test_apply_overrides_basic():
     cfg = {"a": {"b": 1}}
     overrides = ["a.b=42"]
-    updated = parse_and_apply_overrides(cfg, overrides)
+    updated = apply_overrides(cfg, overrides)
     assert updated == {"a": {"b": 42}}
 
 
 def test_apply_overrides_nested_list():
     cfg = {}
     overrides = ["x.y[0].name=conv", "x.y[1].attrs.out_channels=64"]
-    updated = parse_and_apply_overrides(cfg, overrides)
+    updated = apply_overrides(cfg, overrides)
     assert updated == {"x": {"y": [{"name": "conv"}, {"attrs": {"out_channels": 64}}]}}
 
 
 def test_apply_overrides_mix_types():
     cfg = {}
     overrides = ["flag=True", "threshold=0.75", "num_layers=5", "name=model_v1"]
-    updated = parse_and_apply_overrides(cfg, overrides)
+    updated = apply_overrides(cfg, overrides)
     assert updated == {
         "flag": True,
         "threshold": 0.75,
@@ -112,7 +112,7 @@ def test_apply_overrides_append():
         "nested.items+=foo",
         "nested.items+=bar",
     ]
-    updated = parse_and_apply_overrides(cfg, overrides)
+    updated = apply_overrides(cfg, overrides)
     assert updated == {
         "existing_list": ["a", "b", "c"],
         "new_list": [1, 2, 3],
@@ -123,21 +123,21 @@ def test_apply_overrides_append():
 def test_delete_dict_key():
     cfg = {"a": {"b": {"c": 123, "d": 456}}}
     overrides = ["a.b.c!="]
-    updated = parse_and_apply_overrides(cfg, overrides)
+    updated = apply_overrides(cfg, overrides)
     assert updated == {"a": {"b": {"d": 456}}}
 
 
 def test_delete_list_index():
     cfg = {"layers": ["conv1", "conv2", "conv3"]}
     overrides = ["layers[1]!="]
-    updated = parse_and_apply_overrides(cfg, overrides)
+    updated = apply_overrides(cfg, overrides)
     assert updated == {"layers": ["conv1", "conv3"]}
 
 
 def test_delete_list_value():
     cfg = {"tags": ["debug", "train", "final"]}
     overrides = ['tags-="train"']
-    updated = parse_and_apply_overrides(cfg, overrides)
+    updated = apply_overrides(cfg, overrides)
     assert updated == {"tags": ["debug", "final"]}
 
 
@@ -156,7 +156,7 @@ def test_combined_deletes_and_adds():
         "tags+=debug",  # append
         'tags-="baseline"',  # remove value
     ]
-    updated = parse_and_apply_overrides(cfg, overrides)
+    updated = apply_overrides(cfg, overrides)
     assert updated == {
         "model": {"layers": ["conv", "relu", "maxpool"]},
         "tags": ["debug"],

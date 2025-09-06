@@ -114,7 +114,7 @@ def test_invalid_class_path():
 
 
 def test_ignore_registry():
-    with pytest.raises(ValueError):
+    with pytest.raises(AssertionError):
         build_from_cfg({"type": "Leaf", "value": 123}, registry=None)
 
 

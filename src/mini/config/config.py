@@ -24,6 +24,11 @@ def param(name: str, default: T) -> T:
     return _params_ctx.get().get(name, default)
 
 
+def params_dict() -> dict:
+    """Return a dict of injected variable values."""
+    return _params_ctx.get().copy()
+
+
 def load_merged_config(paths: list[os.PathLike], params: dict | None = None):
     return reduce(deep_merge_dicts, (load_config(p, params) for p in paths))
 
@@ -41,7 +46,7 @@ def load_config(path: os.PathLike, params: dict | None = None):
         _params_ctx.reset(token)
     config = getattr(config_module, "config", {})
     parents = getattr(config_module, "parents", None)
-    params = getattr(config_module, "params", {}) | params
+    params = deep_merge_dicts(getattr(config_module, "params", {}), params)
     delete = getattr(config_module, "delete", [])
 
     if isinstance(parents, str):
@@ -76,7 +81,7 @@ def format_config(config: dict) -> str:
 
 
 def deep_merge_dicts(base: dict, override: dict):
-    base = dict(base)
+    base = base.copy()
     for k, v in override.items():
         if k in base and isinstance(base[k], dict) and isinstance(v, dict):
             base[k] = deep_merge_dicts(base[k], v)
@@ -85,11 +90,7 @@ def deep_merge_dicts(base: dict, override: dict):
     return base
 
 
-def parse_params(params: list[str]):
-    return {k: infer_type(v) for k, v in (p.split("=", 1) for p in params)}
-
-
-def parse_and_apply_overrides(cfg: dict, overrides: list[str]):
+def apply_overrides(cfg: dict, overrides: list[str]):
     for override in overrides:
         if "+=" in override:
             key, value = override.split("+=", 1)
@@ -190,6 +191,7 @@ def remove_value_from_list(d: dict, keys, value):
         d = d[key]
     if isinstance(d, list) and value in d:
         d.remove(value)
+    # TODO: this should probably raise if d is not a list
 
 
 def infer_type(val: str):
