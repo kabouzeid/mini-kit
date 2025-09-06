@@ -4,6 +4,7 @@ import signal
 import sys
 import tempfile
 import time
+import warnings
 from datetime import timedelta
 from numbers import Number
 from pathlib import Path
@@ -11,6 +12,8 @@ from typing import Any, Callable, Iterable, Literal, Sequence
 
 import torch
 import torch.distributed as dist
+from PIL import Image
+from PIL.Image import Image as PILImage
 from torch.distributed.checkpoint.state_dict import (
     get_model_state_dict,
     set_model_state_dict,
@@ -583,9 +586,15 @@ class WandbHook(BaseHook):
         if dist.get_rank() == 0:
             wandb_data = {}
             for k, img in flatten_nested_dict({"vis": records}).items():
-                key = "/".join(k[:-1])
-                wandb_data.setdefault(key, []).append(
-                    wandb.Image(img, caption=k[-1], file_type=self.image_format(k[-1]))
+                file_type = self.image_format(k[-1])
+                wandb_data.setdefault("/".join(k[:-1]), []).append(
+                    wandb.Image(
+                        self._ensure_jpeg_compatible(img)
+                        if file_type in ["jpg", "jpeg"]
+                        else img,
+                        caption=k[-1],
+                        file_type=file_type,
+                    )
                 )
 
             if not dry_run:
@@ -593,14 +602,31 @@ class WandbHook(BaseHook):
             else:
                 trainer.logger.debug(f"Dry run log. Would log: {wandb_data}")
 
-    def _wandb_run_id_file_name(self, trainer: BaseTrainer):
+    @staticmethod
+    def _ensure_jpeg_compatible(img: PILImage, bg_color: tuple = (255, 255, 255)):
+        if img.mode in ("RGB", "L"):
+            return img
+        elif img.mode in ("RGBA", "LA"):
+            background = Image.new("RGB", img.size, bg_color)
+            background.paste(img, mask=img.getchannel("A"))
+            return background
+        else:
+            warnings.warn(
+                f"Trying to convert {img.mode} to RGB in a best-effort manner."
+            )
+            return img.convert("RGB")
+
+    @staticmethod
+    def _wandb_run_id_file_name(trainer: BaseTrainer):
         return trainer.workspace / "wandb_run_id"
 
-    def _save_wandb_run_id(self, trainer: BaseTrainer, run_id: str):
-        self._wandb_run_id_file_name(trainer).write_text(run_id)
+    @classmethod
+    def _save_wandb_run_id(cls, trainer: BaseTrainer, run_id: str):
+        cls._wandb_run_id_file_name(trainer).write_text(run_id)
 
-    def _load_wandb_run_id(self, trainer: BaseTrainer):
-        f = self._wandb_run_id_file_name(trainer)
+    @classmethod
+    def _load_wandb_run_id(cls, trainer: BaseTrainer):
+        f = cls._wandb_run_id_file_name(trainer)
         if f.exists():
             return f.read_text()
         return None
