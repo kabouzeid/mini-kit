@@ -168,7 +168,7 @@ def test_complex_child_param_inheritance(tmp_path):
             _write(
                 gp_path,
                 f"""
-                def config(steps, warmup_steps{"=100" if gp_path.stem == "3_X" else ""}, **params):
+                def config(steps{"=100" if gp_path.stem == "3_X" else ""}, warmup_steps{"=100" if gp_path.stem == "3_X" else ""}, **params):
                     return {{"steps_{gp_path.stem}": steps}}
                 """,
             )
