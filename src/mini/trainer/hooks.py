@@ -292,7 +292,7 @@ class CheckpointingHook(BaseHook):
         self,
         interval: int,
         keep_previous: int = 0,  # keep N previous checkpoints
-        keep_every: int = 0,  # keep checkpoints of every N-th step
+        keep_interval: int = 0,  # keep checkpoints of every N-th step
         path: Path | str = "checkpoint",
         load: Path | str | Literal["latest"] | None = "latest",
         exit_signals: list[signal.Signals] | signal.Signals = None,
@@ -303,7 +303,7 @@ class CheckpointingHook(BaseHook):
         assert keep_previous >= 0
         self.interval = interval
         self.keep_previous = keep_previous
-        self.keep_every = keep_every
+        self.keep_interval = keep_interval
         self.path = Path(path)
         self.load_path = Path(load) if load is not None else None
 
@@ -378,7 +378,7 @@ class CheckpointingHook(BaseHook):
                 )
             self._save_checkpoint(
                 trainer,
-                keep=self.keep_every > 0 and trainer.step % self.keep_every == 0,
+                keep=self.keep_interval > 0 and trainer.step % self.keep_interval == 0,
             )
             if save_and_exit:
                 dist.barrier()
