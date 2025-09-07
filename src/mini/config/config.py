@@ -17,13 +17,9 @@ def load_config(path: os.PathLike | Sequence[os.PathLike], params: dict | None =
     paths = [path] if isinstance(path, (str, os.PathLike)) else path
     specs = [spec for p in paths for spec in _collect_config_specs(Path(p))]
 
-    # fully resolve the params once
-    params = reduce(
-        deep_merge_dicts,
-        [default_params for _, default_params in specs] + [params or {}],
-    )
+    # last assignment wins. we could also deep merge, but it feels less natural here
+    params = {k: v for _, d in specs for k, v in d.items()} | (params or {})
 
-    # use the same params for all configs
     return reduce(
         deep_merge_dicts,
         (_build_config(config, params) for config in [cfg for cfg, _ in specs]),
