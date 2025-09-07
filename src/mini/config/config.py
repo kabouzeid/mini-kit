@@ -1,67 +1,69 @@
 import ast
 import importlib.util
+import inspect
 import os
 import re
 import sys
-from contextvars import ContextVar
 from functools import reduce
 from pathlib import Path
-from typing import TypeVar
-
-# Just in case: we use a ContextVar instead of a plain global, so injected params stay local per thread / async task.
-_params_ctx: ContextVar[dict] = ContextVar("mini_config_params", default={})
+from typing import Callable, Sequence, TypeVar
 
 T = TypeVar("T")
 
 DELETE = object()  # Sentinel value to delete config entries
 
 
-def param(name: str, default: T) -> T:
-    """Return injected variable value or provided default.
+def load_config(path: os.PathLike | Sequence[os.PathLike], params: dict | None = None):
+    paths = [path] if isinstance(path, (str, os.PathLike)) else path
+    specs = [spec for p in paths for spec in _collect_config_specs(Path(p))]
 
-    Usage inside config python file:
-        from mini.config import param
-        total_steps = param("total_steps", 10000)
+    # fully resolve the params once
+    params = reduce(
+        deep_merge_dicts,
+        [default_params for _, default_params in specs] + [params or {}],
+    )
+
+    # use the same params for all configs
+    return reduce(
+        deep_merge_dicts,
+        (_build_config(config, params) for config in [cfg for cfg, _ in specs]),
+    )
+
+
+def _build_config(config: dict | Callable, params: dict):
+    return config(**params) if callable(config) else config
+
+
+def _collect_config_specs(path: os.PathLike) -> list[tuple[dict, dict]]:
     """
-    return _params_ctx.get().get(name, default)
-
-
-def params_dict() -> dict:
-    """Return a dict of injected variable values."""
-    return _params_ctx.get().copy()
-
-
-def load_merged_config(paths: list[os.PathLike], params: dict | None = None):
-    return reduce(deep_merge_dicts, (load_config(p, params) for p in paths))
-
-
-def load_config(path: os.PathLike, params: dict | None = None):
+    Return the flattened inheritance chain for the config at `path`. Ordered from the farthest parent first.
+    """
     path = Path(path).resolve()
     spec = importlib.util.spec_from_file_location("config_module", path)
     config_module = importlib.util.module_from_spec(spec)
     sys.modules["config_module"] = config_module
-    params = params or {}
-    token = _params_ctx.set(params)
-    try:
-        spec.loader.exec_module(config_module)
-    finally:
-        _params_ctx.reset(token)
-    config = getattr(config_module, "config", {})
-    parents = getattr(config_module, "parents", None)
-    params = deep_merge_dicts(getattr(config_module, "params", {}), params)
-    delete = getattr(config_module, "delete", [])
+    spec.loader.exec_module(config_module)
 
+    config = getattr(config_module, "config", {})
+    params = _defaults_args(config) if callable(config) else {}
+
+    parents = getattr(config_module, "parents", None)
     if isinstance(parents, str):
         parents = [parents]
-    if parents:
-        parent_config = load_merged_config(
-            [path.parent / Path(p) for p in parents], params
-        )
-        for key in delete:
-            delete_nested(parent_config, parse_key_path(key))
-        config = deep_merge_dicts(parent_config, config)
 
-    return config
+    return [
+        parent_cfg_specs
+        for parent in parents or []
+        for parent_cfg_specs in _collect_config_specs(path.parent / Path(parent))
+    ] + [(config, params)]
+
+
+def _defaults_args(f: Callable) -> dict:
+    return {
+        name: param.default
+        for name, param in inspect.signature(f).parameters.items()
+        if param.default is not inspect.Parameter.empty
+    }
 
 
 def save_config(config: dict, path: os.PathLike):
@@ -94,7 +96,7 @@ def deep_merge_dicts(base: dict, override: dict):
     return base
 
 
-def apply_overrides(cfg: dict, overrides: list[str]):
+def apply_overrides(cfg: dict, overrides: Sequence[str]):
     for override in overrides:
         if "+=" in override:
             key, value = override.split("+=", 1)

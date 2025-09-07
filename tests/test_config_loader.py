@@ -1,7 +1,7 @@
 import textwrap
 from pathlib import Path
 
-from mini.config import load_config, load_merged_config
+from mini.config import load_config
 
 
 def _write(path: Path, code: str):
@@ -70,7 +70,7 @@ def test_key_deletion(tmp_path):
     assert cfg == {"model": {"name": "resnet"}}
 
 
-def test_load_merged_config_order(tmp_path):
+def test_load_multiple_configs_order(tmp_path):
     """
     Earlier paths should be overridden by later ones.
     """
@@ -80,7 +80,7 @@ def test_load_merged_config_order(tmp_path):
     b = tmp_path / "b.py"
     _write(b, "config = {'b': 3, 'c': 4}")
 
-    merged = load_merged_config([a, b])
+    merged = load_config([a, b])
     assert merged == {"a": 1, "b": 3, "c": 4}
 
 
@@ -89,23 +89,18 @@ def test_param_injection(tmp_path):
     _write(
         cfg_path,
         """
-        from mini.config import param
-        steps = param('steps', 1000)
-        warmup_fraction = 0.1
-        config = {
-            'steps': steps,
-            'warmup_steps': int(steps * warmup_fraction),
-        }
+        def config(steps=1000, **params):
+            return {'steps': steps}
         """,
     )
 
     # Without injection we get defaults
     cfg_default = load_config(cfg_path)
-    assert cfg_default == {"steps": 1000, "warmup_steps": 100}
+    assert cfg_default == {"steps": 1000}
 
     # With injection we override usages consistently
     cfg_override = load_config(cfg_path, params={"steps": 5000})
-    assert cfg_override == {"steps": 5000, "warmup_steps": 500}
+    assert cfg_override == {"steps": 5000}
 
 
 def test_child_param_injection(tmp_path):
@@ -113,28 +108,110 @@ def test_child_param_injection(tmp_path):
     _write(
         cfg_path,
         """
-        from mini.config import param
-        steps = param('steps', 1000)
-        warmup_fraction = 0.1
-        config = {
-            'steps': steps,
-            'warmup_steps': int(steps * warmup_fraction),
-        }
+        def config(steps=1000, **params):
+            return {'steps': steps}
         """,
     )
     child_cfg_path = tmp_path / "child_cfg.py"
     _write(
         child_cfg_path,
         f"""
-        params = {{'steps': 5000}}
         parents = ['{cfg_path}']
+        def config(steps=5000, **params):
+            return {{}}
         """,
     )
 
     # Without injection we get defaults
     cfg_default = load_config(cfg_path)
-    assert cfg_default == {"steps": 1000, "warmup_steps": 100}
+    assert cfg_default == {"steps": 1000}
 
     # With child injection we override usages consistently
     cfg_override = load_config(child_cfg_path)
-    assert cfg_override == {"steps": 5000, "warmup_steps": 500}
+    assert cfg_override == {"steps": 5000}
+
+
+def test_child_param_inheritance(tmp_path):
+    cfg_path = tmp_path / "cfg.py"
+    _write(
+        cfg_path,
+        """
+        def config(steps=1000, **params):
+            return {'steps': steps}
+        """,
+    )
+    child_cfg_path = tmp_path / "child_cfg.py"
+    _write(
+        child_cfg_path,
+        f"""
+        parents = ['{cfg_path}']
+        def config(steps, **params):
+            return {{"warmup_steps": int(steps * 0.1)}}
+        """,
+    )
+
+    cfg_default = load_config(cfg_path)
+    assert cfg_default == {"steps": 1000}
+
+    # The child inherits the parent's default for steps
+    cfg_override = load_config(child_cfg_path)
+    assert cfg_override == {"steps": 1000, "warmup_steps": 100}
+
+
+def test_complex_child_param_inheritance(tmp_path):
+    parent_cfg_paths = [tmp_path / f"{p}.py" for p in ["1", "2", "3"]]
+    for p_path in parent_cfg_paths:
+        grandparent_cfg_paths = [
+            tmp_path / f"{p_path.stem}_{g}.py" for g in ["X", "Y", "Z"]
+        ]
+        for gp_path in grandparent_cfg_paths:
+            _write(
+                gp_path,
+                f"""
+                def config(steps, warmup_steps{"=100" if gp_path.stem == "3_X" else ""}, **params):
+                    return {{"steps_{gp_path.stem}": steps}}
+                """,
+            )
+        _write(
+            p_path,
+            f"""
+            parents = {list(map(str, grandparent_cfg_paths))}
+            def config(warmup_steps, steps={int(p_path.stem) * 1000}, extra=False, **params):
+                return {{"steps_{p_path.stem}": steps, "warmup_steps_{p_path.stem}": warmup_steps, "extra_{p_path.stem}": extra}}
+            """,
+        )
+
+    base_cfg_path = tmp_path / "base.py"
+    _write(
+        base_cfg_path,
+        f"""
+        parents = {list(map(str, parent_cfg_paths))}
+        def config(steps, warmup_steps, **params):
+            return {{"steps": steps, "warmup_steps": warmup_steps, "extra": params['extra']}}
+        """,
+    )
+
+    cfg = load_config(base_cfg_path, {"extra": True})
+    assert cfg == {
+        "extra": True,
+        "steps": 3000,
+        "warmup_steps": 100,
+        "extra_1": True,
+        "steps_1": 3000,
+        "warmup_steps_1": 100,
+        "steps_1_X": 3000,
+        "steps_1_Y": 3000,
+        "steps_1_Z": 3000,
+        "extra_2": True,
+        "steps_2": 3000,
+        "warmup_steps_2": 100,
+        "steps_2_X": 3000,
+        "steps_2_Y": 3000,
+        "steps_2_Z": 3000,
+        "extra_3": True,
+        "steps_3": 3000,
+        "warmup_steps_3": 100,
+        "steps_3_X": 3000,
+        "steps_3_Y": 3000,
+        "steps_3_Z": 3000,
+    }
