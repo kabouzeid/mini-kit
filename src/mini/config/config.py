@@ -13,6 +13,8 @@ _params_ctx: ContextVar[dict] = ContextVar("mini_config_params", default={})
 
 T = TypeVar("T")
 
+DELETE = object()  # Sentinel value to delete config entries
+
 
 def param(name: str, default: T) -> T:
     """Return injected variable value or provided default.
@@ -85,6 +87,8 @@ def deep_merge_dicts(base: dict, override: dict):
     for k, v in override.items():
         if k in base and isinstance(base[k], dict) and isinstance(v, dict):
             base[k] = deep_merge_dicts(base[k], v)
+        elif v is DELETE:
+            base.pop(k, None)
         else:
             base[k] = v
     return base

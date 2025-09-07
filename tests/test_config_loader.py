@@ -46,7 +46,7 @@ def test_parent_precedence(tmp_path):
 
 def test_key_deletion(tmp_path):
     """
-    Child declares delete = ["model.dropout"].
+    Child deletes model.dropout.
     """
     parent = tmp_path / "parent.py"
     _write(
@@ -60,40 +60,14 @@ def test_key_deletion(tmp_path):
     _write(
         child,
         """
+        from mini.config import DELETE
         parents = ["parent.py"]
-        delete  = ["model.dropout"]
-        config  = {}
+        config  = {"model": {"dropout": DELETE}}
         """,
     )
 
     cfg = load_config(child)
     assert cfg == {"model": {"name": "resnet"}}
-
-
-def test_key_deletion2(tmp_path):
-    """
-    Child declares delete = ["model.name"] and also overrides it in the config.
-    """
-    parent = tmp_path / "parent.py"
-    _write(
-        parent,
-        """
-        config = {"model": {"name": "resnet"}}
-        """,
-    )
-
-    child = tmp_path / "child.py"
-    _write(
-        child,
-        """
-        parents = ["parent.py"]
-        delete  = ["model.name"]
-        config  = {"model": {"name": "vit"}}
-        """,
-    )
-
-    cfg = load_config(child)
-    assert cfg == {"model": {"name": "vit"}}
 
 
 def test_load_merged_config_order(tmp_path):
