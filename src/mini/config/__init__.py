@@ -1,5 +1,6 @@
 from .config import (
     DELETE,
+    REPLACE,
     apply_overrides,
     format_config,
     load_config,
@@ -8,6 +9,7 @@ from .config import (
 
 __all__ = [
     "DELETE",
+    "REPLACE",
     "apply_overrides",
     "format_config",
     "load_config",

@@ -56,6 +56,27 @@ def test_nested_instantiation():
     assert tree.root.children[0].value == 1
 
 
+def test_positional_args():
+    cfg = {"type": "Leaf", "*": [456]}
+    obj = build_from_cfg(cfg, registry=REGISTRY)
+    assert isinstance(obj, Leaf)
+    assert obj.value == 456
+
+
+def test_clashing_positional_and_keyword_args():
+    cfg = {"type": "Leaf", "*": [789], "value": 1011}
+    with pytest.raises(TypeError):
+        build_from_cfg(cfg, registry=REGISTRY)
+
+
+def test_positional_and_keyword_args():
+    cfg = {"type": "Tree", "*": ["root"], "name": "MyTree"}
+    tree = build_from_cfg(cfg, registry=REGISTRY)
+    assert isinstance(tree, Tree)
+    assert tree.name == "MyTree"
+    assert tree.root == "root"
+
+
 def test_tuple_support():
     cfg = {
         "type": "Node",

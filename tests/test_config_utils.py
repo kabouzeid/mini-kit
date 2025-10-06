@@ -141,6 +141,13 @@ def test_delete_list_value():
     assert updated == {"tags": ["debug", "final"]}
 
 
+def test_set_special_key():
+    cfg = {"a": {"b": 1}}
+    overrides = ["a.*=[1,2,3]"]
+    updated = apply_overrides(cfg, overrides)
+    assert updated == {"a": {"*": [1, 2, 3], "b": 1}}
+
+
 def test_combined_deletes_and_adds():
     cfg = {
         "model": {

@@ -109,12 +109,15 @@ def _instantiate(cfg: Dict[str, Any], registry: Registry | None = None) -> Any:
     if registry and registry.get(obj_type):
         obj = registry.get(obj_type)
     else:
-        assert "." in obj_type, f"Object type '{obj_type}' is neither registered nor specifies a module path"
+        assert "." in obj_type, (
+            f"Object type '{obj_type}' is neither registered nor specifies a module path"
+        )
         module_path, obj_name = obj_type.rsplit(".", 1)
         module = importlib.import_module(module_path)
         obj = getattr(module, obj_name)
 
+    pos_args = cfg.pop("*", [])
     if partial:
-        return functools.partial(obj, **cfg)
+        return functools.partial(obj, *pos_args, **cfg)
     else:
-        return obj(**cfg)
+        return obj(*pos_args, **cfg)

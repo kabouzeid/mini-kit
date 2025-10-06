@@ -557,14 +557,19 @@ class WandbHook(BaseHook):
     def on_before_train(self, trainer: BaseTrainer):
         if dist.get_rank() == 0:
             wandb_run_id = self._load_wandb_run_id(trainer)
+
+            tags = os.getenv("WANDB_TAGS", "")
+            tags = list(self.tags) + (tags.split(",") if tags else [])  # concat
+            tags = list(dict.fromkeys(tags))  # deduplicate while preserving order
+
             # it seems that we should use resume_from={run_id}?_{step} in wandb.init instead, but it's not well documented
             self.wandb = wandb.init(
-                project=self.project,
-                dir=trainer.workspace,
-                id=wandb_run_id,
-                resume="must" if wandb_run_id else None,
+                project=os.getenv("WANDB_PROJECT", self.project),
+                dir=os.getenv("WANDB_DIR", trainer.workspace),
+                id=os.getenv("WANDB_RUN_ID", wandb_run_id),
+                resume=os.getenv("WANDB_RESUME", "must" if wandb_run_id else None),
                 config=self.config,
-                tags=self.tags,
+                tags=tags,
                 **self.wandb_kwargs,
             )
             if not self.wandb.disabled:

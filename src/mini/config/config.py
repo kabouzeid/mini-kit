@@ -10,7 +10,13 @@ from typing import Callable, Sequence, TypeVar
 
 T = TypeVar("T")
 
+
 DELETE = object()  # Sentinel value to delete config entries
+
+
+class REPLACE:
+    def __init__(self, value, /):
+        self.value = value
 
 
 def load_config(path: os.PathLike | Sequence[os.PathLike], params: dict | None = None):
@@ -87,6 +93,8 @@ def deep_merge_dicts(base: dict, override: dict):
             base[k] = deep_merge_dicts(base[k], v)
         elif v is DELETE:
             base.pop(k, None)
+        elif isinstance(v, REPLACE):
+            base[k] = v.value
         else:
             base[k] = v
     return base

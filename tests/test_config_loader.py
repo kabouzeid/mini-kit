@@ -70,6 +70,32 @@ def test_key_deletion(tmp_path):
     assert cfg == {"model": {"name": "resnet"}}
 
 
+def test_key_replacement(tmp_path):
+    """
+    Child replaces model with a new dict.
+    """
+    parent = tmp_path / "parent.py"
+    _write(
+        parent,
+        """
+        config = {"model": {"name": "resnet", "dropout": 0.5}}
+        """,
+    )
+
+    child = tmp_path / "child.py"
+    _write(
+        child,
+        """
+        from mini.config import REPLACE
+        parents = ["parent.py"]
+        config  = {"model": REPLACE({"name": "vit", "activation": "relu"})}
+        """,
+    )
+
+    cfg = load_config(child)
+    assert cfg == {"model": {"name": "vit", "activation": "relu"}}
+
+
 def test_load_multiple_configs_order(tmp_path):
     """
     Earlier paths should be overridden by later ones.
