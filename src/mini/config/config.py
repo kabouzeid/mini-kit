@@ -6,10 +6,7 @@ import re
 import sys
 from functools import reduce
 from pathlib import Path
-from typing import Callable, Sequence, TypeVar
-
-T = TypeVar("T")
-
+from typing import Callable, Sequence
 
 DELETE = object()  # Sentinel value to delete config entries
 
