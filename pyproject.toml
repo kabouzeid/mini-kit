@@ -14,6 +14,7 @@ config = [
     "black>=22.1.0",
 ]
 trainer = [
+    "pillow>=11.3.0",
     "torch>=2.0.0",
     "wandb>=0.20.1",
 ]
