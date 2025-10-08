@@ -296,7 +296,7 @@ wheels = [
 ]
 
 [[package]]
-name = "minidlp"
+name = "mini-kit"
 version = "0.1.0"
 source = { editable = "." }
 
