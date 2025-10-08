@@ -10,7 +10,7 @@ jobs:
 
     environment:
       name: pypi
-      url: https://pypi.org/p/minikit
+      url: https://pypi.org/p/mini-kit
 
     permissions:
       id-token: write
