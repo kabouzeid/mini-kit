@@ -1,7 +1,7 @@
 [project]
-name = "minidlp"
+name = "mini-kit"
 version = "0.1.0"
-description = "Mini deep learning primitives"
+description = "Small self-contained micro packages for deep learning codebases."
 readme = "README.md"
 authors = [
     { name = "Karim Abou Zeid", email = "contact@ka.codes" }
