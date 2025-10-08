@@ -4,5 +4,8 @@
 
 # mini-kit
 
+[![image](https://img.shields.io/pypi/v/mini-kit.svg)](https://pypi.python.org/pypi/mini-kit)
+
 Small self-contained micro packages for deep learning codebases.
+
 
