@@ -25,6 +25,7 @@ build-backend = "uv_build"
 
 [tool.uv.build-backend]
 namespace = true
+module-name = ""  # https://github.com/astral-sh/uv/issues/14435#issuecomment-3031586558
 
 [dependency-groups]
 dev = [
