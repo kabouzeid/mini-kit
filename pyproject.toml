@@ -18,6 +18,12 @@ trainer = [
     "torch>=2.0.0",
     "wandb>=0.20.1",
 ]
+all = [
+    "black",
+    "pillow",
+    "torch",
+    "wandb",
+]
 
 [build-system]
 requires = ["uv_build>=0.9.0,<0.10.0"]
