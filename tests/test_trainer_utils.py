@@ -1,6 +1,5 @@
 import math
 
-import pytest
 from mini.trainer.utils import key_average
 
 
