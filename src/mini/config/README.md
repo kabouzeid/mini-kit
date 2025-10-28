@@ -24,7 +24,7 @@
     config = {
         "model": {
             "encoder": {"channels": 64},
-            "head": {"in_channels": 64, "out_channels", 10]},
+            "head": {"in_channels": 64, "out_channels": 10},
         },
         "optimizer": {"type": "adam", "lr": 3e-4},
         "trainer": {"max_steps": 50_000},
@@ -40,7 +40,7 @@
     def config(num_classes=10, max_steps=10_000, warmup_steps=1_000):
         return {
             "model": {
-                "head": {"out_channels", num_classes},
+                "head": {"out_channels": num_classes},
             },
             "scheduler": {
                 "type": "linear_warmup_cosine_decay",
