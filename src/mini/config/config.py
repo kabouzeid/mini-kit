@@ -106,6 +106,7 @@ def deep_merge_dicts(base: dict, override: dict):
 
 
 def apply_overrides(cfg: dict, overrides: Sequence[str]):
+    cfg = cfg.copy()
     for override in overrides:
         if "+=" in override:
             key, value = override.split("+=", 1)
