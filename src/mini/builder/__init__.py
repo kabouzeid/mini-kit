@@ -1,8 +1,8 @@
-from .builder import Registry, build, REGISTRY, register
+from .builder import REGISTRY, Registry, build, register
 
 __all__ = [
+    "REGISTRY",
     "Registry",
     "build",
-    "REGISTRY",
     "register",
 ]
