@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/95493b42-6734-42b7-bf93-96987bcf60ad" height=200/>
+  <img src="https://github.com/user-attachments/assets/e8f5ce11-1b57-49d0-9d20-a3ee587a4498" height=200/>
 </p>
 
 # mini-kit
