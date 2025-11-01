@@ -1,6 +1,6 @@
 [project]
 name = "mini-kit"
-version = "0.1.0"
+version = "0.2.0"
 description = "Small self-contained micro packages for deep learning codebases."
 readme = "README.md"
 authors = [
