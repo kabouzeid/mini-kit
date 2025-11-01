@@ -28,7 +28,7 @@ def load(path: os.PathLike | Sequence[os.PathLike], params: dict | None = None):
     params = {k: v for _, d in specs for k, v in d.items()} | (params or {})
 
     return reduce(
-        deep_merge_dicts,
+        merge,
         (_build_config(config, params) for config in [cfg for cfg, _ in specs]),
     )
 
@@ -91,11 +91,11 @@ def format(config: dict) -> str:
     return black.format_str(repr(config), mode=black.Mode())
 
 
-def deep_merge_dicts(base: dict, override: dict):
+def merge(base: dict, override: dict):
     base = base.copy()
     for k, v in override.items():
         if k in base and isinstance(base[k], dict) and isinstance(v, dict):
-            base[k] = deep_merge_dicts(base[k], v)
+            base[k] = merge(base[k], v)
         elif isinstance(v, Delete):
             base.pop(k, None)
         elif isinstance(v, Replace):

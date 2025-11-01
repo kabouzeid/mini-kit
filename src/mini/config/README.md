@@ -188,7 +188,7 @@ When configs are layered, `mini.config` walks the override dictionary and combin
 - Otherwise, assign the override value directly. Lists, tuples, numbers, strings, and other types always replace the prior value.
 
 ```python
-from mini.config import Delete, Replace, deep_merge_dicts
+from mini.config import Delete, Replace, merge
 
 base = {
     "optimizer": {
@@ -207,7 +207,7 @@ override = {
     "trainer": {"steps": 10_000, "hooks": ["progress"]},
 }
 
-merged = deep_merge_dicts(base, override)
+merged = merge(base, override)
 # =>
 # {
 #   "optimizer": {"lr": 3e-4, "schedule": {"type": "cosine", "t_max": 20_000}},
@@ -215,7 +215,7 @@ merged = deep_merge_dicts(base, override)
 # }
 ```
 
-`deep_merge_dicts` is exported in case you want to reuse the merge algorithm elsewhere, but `load` and `apply_overrides` already rely on it internally.
+`merge` is exported in case you want to reuse the merge algorithm elsewhere, but `load` and `apply_overrides` already rely on it internally.
 
 ---
 
@@ -251,7 +251,7 @@ dump(cfg, Path("runs/2024-01-10/config_snapshot.py"))
   - Imports each file, resolves parents recursively, merges dictionaries (last wins), and returns the final dictionary. When `config` is callable, it is invoked with merged defaults plus provided `params`.
 - `apply_overrides(cfg: dict, overrides: Sequence[str]) -> dict`
   - Applies CLI-style mutations in place and returns the dictionary for convenience.
-- `deep_merge_dicts(base: dict, override: dict) -> dict`
+- `merge(base: dict, override: dict) -> dict`
   - Recursive merge helper exposed for advanced use-cases.
 - `Delete()`
   - Verb that deletes keys during merges.

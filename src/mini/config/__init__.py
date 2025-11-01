@@ -2,18 +2,18 @@ from .config import (
     Delete,
     Replace,
     apply_overrides,
-    deep_merge_dicts,
     dump,
     format,
     load,
+    merge,
 )
 
 __all__ = [
     "Delete",
     "Replace",
     "apply_overrides",
-    "deep_merge_dicts",
     "dump",
     "format",
     "load",
+    "merge",
 ]
