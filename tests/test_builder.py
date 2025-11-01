@@ -2,36 +2,36 @@ import functools
 from types import SimpleNamespace
 
 import pytest
-from mini.builder import REGISTRY, Registry, build
+from mini.builder import default_registry, Registry, build
 
 
-@REGISTRY.register()
+@default_registry.register()
 class Leaf:
     def __init__(self, value):
         self.value = value
 
 
-@REGISTRY.register()
+@default_registry.register()
 class Node:
     def __init__(self, children):
         self.children = children
 
 
-@REGISTRY.register()
+@default_registry.register()
 class Tree:
     def __init__(self, root, name):
         self.root = root
         self.name = name
 
 
-@REGISTRY.register()
+@default_registry.register()
 def add(a, b, scale):
     return (a + b) * scale
 
 
 def test_simple_instantiation():
     cfg = {"type": "Leaf", "value": 123}
-    obj = build(cfg, registry=REGISTRY)
+    obj = build(cfg, registry=default_registry)
     assert isinstance(obj, Leaf)
     assert obj.value == 123
 
@@ -48,7 +48,7 @@ def test_nested_instantiation():
             ],
         },
     }
-    tree = build(cfg, registry=REGISTRY, recursive=True)
+    tree = build(cfg, registry=default_registry, recursive=True)
     assert isinstance(tree, Tree)
     assert tree.name == "MyTree"
     assert isinstance(tree.root, Node)
@@ -58,7 +58,7 @@ def test_nested_instantiation():
 
 def test_positional_args():
     cfg = {"type": "Leaf", "*": [456]}
-    obj = build(cfg, registry=REGISTRY)
+    obj = build(cfg, registry=default_registry)
     assert isinstance(obj, Leaf)
     assert obj.value == 456
 
@@ -66,12 +66,12 @@ def test_positional_args():
 def test_clashing_positional_and_keyword_args():
     cfg = {"type": "Leaf", "*": [789], "value": 1011}
     with pytest.raises(TypeError):
-        build(cfg, registry=REGISTRY)
+        build(cfg, registry=default_registry)
 
 
 def test_positional_and_keyword_args():
     cfg = {"type": "Tree", "*": ["root"], "name": "MyTree"}
-    tree = build(cfg, registry=REGISTRY)
+    tree = build(cfg, registry=default_registry)
     assert isinstance(tree, Tree)
     assert tree.name == "MyTree"
     assert tree.root == "root"
@@ -82,14 +82,14 @@ def test_tuple_support():
         "type": "Node",
         "children": ({"type": "Leaf", "value": 10}, {"type": "Leaf", "value": 20}),
     }
-    node = build(cfg, registry=REGISTRY, recursive=True)
+    node = build(cfg, registry=default_registry, recursive=True)
     assert isinstance(node.children, tuple)
     assert isinstance(node.children[0], Leaf)
 
 
 def test_no_recursion():
     cfg = {"type": "Node", "children": [{"type": "Leaf", "value": 1}]}
-    node = build(cfg, registry=REGISTRY, recursive=False)
+    node = build(cfg, registry=default_registry, recursive=False)
     assert isinstance(node.children[0], dict)  # no recursive instantiation
 
 
@@ -101,21 +101,21 @@ def test_module_path_instantiation():
 
 
 def test_instantiate_partial_function_from_registry():
-    part = build({"type": "partial:add", "scale": 3}, registry=REGISTRY)
+    part = build({"type": "partial:add", "scale": 3}, registry=default_registry)
     assert isinstance(part, functools.partial)
     assert part.func is add
     assert part(2, 4) == (2 + 4) * 3  # 18
 
 
 def test_instantiate_partial_class_from_module_path():
-    part = build({"type": "partial:types.SimpleNamespace", "x": 5}, registry=REGISTRY)
+    part = build({"type": "partial:types.SimpleNamespace", "x": 5}, registry=default_registry)
     assert isinstance(part, functools.partial)
     obj = part(y=9)
     assert obj.x == 5 and obj.y == 9
 
 
 def test_instantiate_partial_class_from_registry():
-    part = build({"type": "partial:Tree", "name": "foo"}, registry=REGISTRY)
+    part = build({"type": "partial:Tree", "name": "foo"}, registry=default_registry)
     assert isinstance(part, functools.partial)
     inst = part(root="bar")
     assert isinstance(inst, Tree)

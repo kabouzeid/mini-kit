@@ -4,7 +4,7 @@
 
 ## Essentials
 
-- Register classes and functions with `@REGISTRY.register()` for short names.
+- Register classes and functions with `@register()` for short names.
 - Call `build` to instantiate registered types or dotted import paths.
 - Opt into recursive instantiation for nested configs.
 - Use `"*"` for positional args.
@@ -16,14 +16,14 @@
 1. **Register components**
 
     ```python
-    from mini.builder import REGISTRY
+    from mini.builder import register
 
-    @REGISTRY.register()
+    @register()
     class Encoder:
         def __init__(self, channels: int):
             self.channels = channels
 
-    @REGISTRY.register()
+    @register()
     class Classifier:
         def __init__(self, encoder, head):
             self.encoder = encoder
@@ -57,9 +57,9 @@
 ### Registry shortcuts
 
 ```python
-from mini.builder import REGISTRY, build
+from mini.builder import register, build
 
-@REGISTRY.register("Custom")
+@register("Custom")
 class Block: ...
 
 build({"type": "Custom", "width": 256})
@@ -92,7 +92,7 @@ layer = build(cfg)
 ### Partial factories
 
 ```python
-@REGISTRY.register()
+@register()
 def loss_fn(pred, target, weight):
     return ((pred - target) ** 2).mean() * weight
 
@@ -117,10 +117,11 @@ Pass `registry=None` to skip registry lookups entirely.
 
 ## API Cheatsheet
 
-- `REGISTRY`: default global registry.
+- `default_registry`: default global registry.
+- `register(name: str | None = None, registry=default_registry) -> Callable`: convenience decorator for adding classes/functions to the registry.
 - `Registry.register(name: str | None = None) -> Callable`: decorator for adding classes/functions (defaults to the object name).
 - `Registry.get(name: str) -> Any`: fetch a registered object; returns `None` when missing.
-- `build(cfg, registry=REGISTRY, recursive=False) -> Any`: instantiate configs, optionally recursing into nested structures.
+- `build(cfg, registry=default_registry, recursive=False) -> Any`: instantiate configs, optionally recursing into nested structures.
   - Raises `AssertionError` when `cfg` lacks `"type"` and `ModuleNotFoundError` when lookups fail.
 
 ## Example Integration with `mini.config`

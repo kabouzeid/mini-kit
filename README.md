@@ -36,15 +36,15 @@ config = {
 
 ```python
 # main.py
-from mini.builder import REGISTRY, build
+from mini.builder import register, build
 from mini.config import apply_overrides, load_config
 
-@REGISTRY.register()
+@register()
 class Encoder:
     def __init__(self, channels: int):
         self.channels = channels
 
-@REGISTRY.register()
+@register()
 class Classifier:
     def __init__(self, encoder, head):
         self.encoder = encoder

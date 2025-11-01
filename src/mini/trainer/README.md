@@ -449,14 +449,14 @@ import torch
 from torch import nn
 from torch.utils.data import IterableDataset
 
-from mini.builder import REGISTRY, build
+from mini.builder import register, build
 from mini.config import load_config
 from mini.trainer import BaseTrainer, CheckpointingHook, ProgressHook
 
 logging.basicConfig(level=logging.INFO)
 
 
-@REGISTRY.register()
+@register()
 class MyTrainer(BaseTrainer):
     def __init__(self, data, model, optimizer, **kwargs):
         super().__init__(**kwargs)
@@ -489,7 +489,7 @@ class MyTrainer(BaseTrainer):
         ]
 
 
-@REGISTRY.register()
+@register()
 class ToyDataset(IterableDataset):
     def __iter__(self):
         while True:
@@ -498,7 +498,7 @@ class ToyDataset(IterableDataset):
             yield x.view(-1), y
 
 
-@REGISTRY.register()
+@register()
 class MyModel(nn.Module):
     def __init__(self, in_dim: int, hidden_dim: int, out_dim: int):
         super().__init__()

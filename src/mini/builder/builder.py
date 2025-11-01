@@ -19,34 +19,38 @@ class Registry:
         return self._store.get(name)
 
 
-REGISTRY = Registry()
+default_registry = Registry()
+
+
+def register(name: str = None, *, registry=default_registry) -> Callable:
+    return registry.register(name)
 
 
 def build(
     cfg: Union[Dict, list, tuple, Any],
-    registry: Registry | None = REGISTRY,
+    registry: Registry | None = default_registry,
     recursive: bool = False,
 ) -> Any:
     """Build an object from a configuration dictionary.
 
     ```python
-    @REGISTRY.register()
+    @register()
     class Layer:
         def __init__(self, units: int):
             self.units = units
 
-    @REGISTRY.register()
+    @register()
     class Backbone:
         def __init__(self, layers: list):
             self.layers = layers
 
-    @REGISTRY.register()
+    @register()
     class Model:
         def __init__(self, backbone: Backbone, name: str):
             self.backbone = backbone
             self.name = name
 
-    @REGISTRY.register()
+    @register()
     def l1_loss(x, y, weight):
         return (x - y).abs() * weight
 
@@ -66,7 +70,7 @@ def build(
         }
     }
 
-    model = build(cfg, registry=REGISTRY, recursive=True)
+    model = build(cfg, recursive=True)
     ```
     """
     if not recursive:
