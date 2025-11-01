@@ -61,7 +61,7 @@ class BaseTrainer:
         )
         self.gradient_accumulation_steps = gradient_accumulation_steps or 1
         self.workspace = Path(workspace) if workspace is not None else None
-        self.logger = logger if logger is not None else logging.getLogger(__name__)
+        self.logger = logger if logger is not None else logging.getLogger("trainer")
         self.no_sync_accumulate = no_sync_accumulate
         self.state_dict_options = state_dict_options
 
