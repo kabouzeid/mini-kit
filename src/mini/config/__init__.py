@@ -1,17 +1,17 @@
 from .config import (
-    DELETE,
-    REPLACE,
     apply_overrides,
+    delete,
     format_config,
     load_config,
+    replace,
     save_config,
 )
 
 __all__ = [
-    "DELETE",
-    "REPLACE",
     "apply_overrides",
+    "delete",
     "format_config",
     "load_config",
+    "replace",
     "save_config",
 ]
