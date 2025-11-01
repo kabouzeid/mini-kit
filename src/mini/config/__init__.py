@@ -1,5 +1,6 @@
 from .config import (
     apply_overrides,
+    deep_merge_dicts,
     delete,
     format_config,
     load_config,
@@ -9,6 +10,7 @@ from .config import (
 
 __all__ = [
     "apply_overrides",
+    "deep_merge_dicts",
     "delete",
     "format_config",
     "load_config",
