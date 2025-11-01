@@ -2,7 +2,7 @@ import functools
 from types import SimpleNamespace
 
 import pytest
-from mini.builder import REGISTRY, Registry, build_from_cfg
+from mini.builder import REGISTRY, Registry, build
 
 
 @REGISTRY.register()
@@ -31,7 +31,7 @@ def add(a, b, scale):
 
 def test_simple_instantiation():
     cfg = {"type": "Leaf", "value": 123}
-    obj = build_from_cfg(cfg, registry=REGISTRY)
+    obj = build(cfg, registry=REGISTRY)
     assert isinstance(obj, Leaf)
     assert obj.value == 123
 
@@ -48,7 +48,7 @@ def test_nested_instantiation():
             ],
         },
     }
-    tree = build_from_cfg(cfg, registry=REGISTRY, recursive=True)
+    tree = build(cfg, registry=REGISTRY, recursive=True)
     assert isinstance(tree, Tree)
     assert tree.name == "MyTree"
     assert isinstance(tree.root, Node)
@@ -58,7 +58,7 @@ def test_nested_instantiation():
 
 def test_positional_args():
     cfg = {"type": "Leaf", "*": [456]}
-    obj = build_from_cfg(cfg, registry=REGISTRY)
+    obj = build(cfg, registry=REGISTRY)
     assert isinstance(obj, Leaf)
     assert obj.value == 456
 
@@ -66,12 +66,12 @@ def test_positional_args():
 def test_clashing_positional_and_keyword_args():
     cfg = {"type": "Leaf", "*": [789], "value": 1011}
     with pytest.raises(TypeError):
-        build_from_cfg(cfg, registry=REGISTRY)
+        build(cfg, registry=REGISTRY)
 
 
 def test_positional_and_keyword_args():
     cfg = {"type": "Tree", "*": ["root"], "name": "MyTree"}
-    tree = build_from_cfg(cfg, registry=REGISTRY)
+    tree = build(cfg, registry=REGISTRY)
     assert isinstance(tree, Tree)
     assert tree.name == "MyTree"
     assert tree.root == "root"
@@ -82,42 +82,40 @@ def test_tuple_support():
         "type": "Node",
         "children": ({"type": "Leaf", "value": 10}, {"type": "Leaf", "value": 20}),
     }
-    node = build_from_cfg(cfg, registry=REGISTRY, recursive=True)
+    node = build(cfg, registry=REGISTRY, recursive=True)
     assert isinstance(node.children, tuple)
     assert isinstance(node.children[0], Leaf)
 
 
 def test_no_recursion():
     cfg = {"type": "Node", "children": [{"type": "Leaf", "value": 1}]}
-    node = build_from_cfg(cfg, registry=REGISTRY, recursive=False)
+    node = build(cfg, registry=REGISTRY, recursive=False)
     assert isinstance(node.children[0], dict)  # no recursive instantiation
 
 
 def test_module_path_instantiation():
     cfg = {"type": "types.SimpleNamespace", "x": 42}
-    obj = build_from_cfg(cfg, recursive=True)  # no registry
+    obj = build(cfg, recursive=True)  # no registry
     assert isinstance(obj, SimpleNamespace)
     assert obj.x == 42
 
 
 def test_instantiate_partial_function_from_registry():
-    part = build_from_cfg({"type": "partial:add", "scale": 3}, registry=REGISTRY)
+    part = build({"type": "partial:add", "scale": 3}, registry=REGISTRY)
     assert isinstance(part, functools.partial)
     assert part.func is add
     assert part(2, 4) == (2 + 4) * 3  # 18
 
 
 def test_instantiate_partial_class_from_module_path():
-    part = build_from_cfg(
-        {"type": "partial:types.SimpleNamespace", "x": 5}, registry=REGISTRY
-    )
+    part = build({"type": "partial:types.SimpleNamespace", "x": 5}, registry=REGISTRY)
     assert isinstance(part, functools.partial)
     obj = part(y=9)
     assert obj.x == 5 and obj.y == 9
 
 
 def test_instantiate_partial_class_from_registry():
-    part = build_from_cfg({"type": "partial:Tree", "name": "foo"}, registry=REGISTRY)
+    part = build({"type": "partial:Tree", "name": "foo"}, registry=REGISTRY)
     assert isinstance(part, functools.partial)
     inst = part(root="bar")
     assert isinstance(inst, Tree)
@@ -126,17 +124,17 @@ def test_instantiate_partial_class_from_registry():
 
 def test_missing_type_key():
     with pytest.raises(AssertionError):
-        build_from_cfg({"x": 1})
+        build({"x": 1})
 
 
 def test_invalid_class_path():
     with pytest.raises(ModuleNotFoundError):
-        build_from_cfg({"type": "nonexistent.Module", "x": 1})
+        build({"type": "nonexistent.Module", "x": 1})
 
 
 def test_ignore_registry():
     with pytest.raises(AssertionError):
-        build_from_cfg({"type": "Leaf", "value": 123}, registry=None)
+        build({"type": "Leaf", "value": 123}, registry=None)
 
 
 def test_custom_registry():
@@ -148,6 +146,6 @@ def test_custom_registry():
             self.x = x
 
     cfg = {"type": "Alias", "x": 42}
-    obj = build_from_cfg(cfg, registry=custom_registry)
+    obj = build(cfg, registry=custom_registry)
     assert isinstance(obj, Dummy)
     assert obj.x == 42

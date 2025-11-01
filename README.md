@@ -36,7 +36,7 @@ config = {
 
 ```python
 # main.py
-from mini.builder import REGISTRY, build_from_cfg
+from mini.builder import REGISTRY, build
 from mini.config import apply_overrides, load_config
 
 @REGISTRY.register()
@@ -53,13 +53,13 @@ class Classifier:
 cfg = load_config("configs/model.py")
 cfg = apply_overrides(cfg, ["optimizer.lr=1e-3", "model.encoder.channels=128"])
 
-model = build_from_cfg(cfg["model"], recursive=True)
-optimizer = build_from_cfg(cfg["optimizer"])
+model = build(cfg["model"], recursive=True)
+optimizer = build(cfg["optimizer"])
 ```
 
 - `load_config` executes `configs/model.py`; keep a simple `config = {...}` for small projects, or swap to `def config(...):` and `parents = [...]` when you need templates and composition.
 - `apply_overrides` allows for painless command-line overrides: tweak nested keys with a short-hand syntax: `optimizer.lr=...`, append with `+=`, or drop entries with `!=`.
-- `build_from_cfg` looks at the `"type"` key, grabs the right constructor (from the registry or import path), and wires up dependencies for you.
+- `build` looks at the `"type"` key, grabs the right constructor (from the registry or import path), and wires up dependencies for you.
 
 More details are in each subpackage's own README:
 

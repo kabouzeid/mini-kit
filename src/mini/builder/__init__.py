@@ -1,7 +1,7 @@
-from .builder import REGISTRY, Registry, build_from_cfg
+from .builder import REGISTRY, Registry, build
 
 __all__ = [
     "REGISTRY",
     "Registry",
-    "build_from_cfg",
+    "build",
 ]

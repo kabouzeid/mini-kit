@@ -449,7 +449,7 @@ import torch
 from torch import nn
 from torch.utils.data import IterableDataset
 
-from mini.builder import REGISTRY, build_from_cfg
+from mini.builder import REGISTRY, build
 from mini.config import load_config
 from mini.trainer import BaseTrainer, CheckpointingHook, ProgressHook
 
@@ -465,14 +465,14 @@ class MyTrainer(BaseTrainer):
         self.optimizer_cfg = optimizer
 
     def build_data_loader(self):
-        return build_from_cfg(self.data_cfg, recursive=True)
+        return build(self.data_cfg, recursive=True)
 
     def build_model(self):
-        model = build_from_cfg(self.model_cfg, recursive=True)
+        model = build(self.model_cfg, recursive=True)
         return model.to(self.device)
 
     def build_optimizer(self):
-        return build_from_cfg(self.optimizer_cfg | {"params": self.model.parameters()})
+        return build(self.optimizer_cfg | {"params": self.model.parameters()})
 
     def forward(self, input):
         x, y = input
@@ -519,7 +519,7 @@ try:
     )
 
     cfg = load_config("configs/train.py")
-    trainer = build_from_cfg(cfg | {"device": device}, recursive=False)
+    trainer = build(cfg | {"device": device}, recursive=False)
     trainer.train()
 finally:
     torch.distributed.destroy_process_group()

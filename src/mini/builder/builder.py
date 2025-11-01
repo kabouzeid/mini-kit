@@ -22,7 +22,7 @@ class Registry:
 REGISTRY = Registry()
 
 
-def build_from_cfg(
+def build(
     cfg: Union[Dict, list, tuple, Any],
     registry: Registry | None = REGISTRY,
     recursive: bool = False,
@@ -66,7 +66,7 @@ def build_from_cfg(
         }
     }
 
-    model = build_from_cfg(cfg, registry=REGISTRY, recursive=True)
+    model = build(cfg, registry=REGISTRY, recursive=True)
     ```
     """
     if not recursive:
