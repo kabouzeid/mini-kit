@@ -48,7 +48,7 @@ def test_nested_instantiation():
             ],
         },
     }
-    tree = build(cfg, registry=default_registry, recursive=True)
+    tree = build(cfg, registry=default_registry)
     assert isinstance(tree, Tree)
     assert tree.name == "MyTree"
     assert isinstance(tree.root, Node)
@@ -82,7 +82,7 @@ def test_tuple_support():
         "type": "Node",
         "children": ({"type": "Leaf", "value": 10}, {"type": "Leaf", "value": 20}),
     }
-    node = build(cfg, registry=default_registry, recursive=True)
+    node = build(cfg, registry=default_registry)
     assert isinstance(node.children, tuple)
     assert isinstance(node.children[0], Leaf)
 
@@ -95,7 +95,7 @@ def test_no_recursion():
 
 def test_module_path_instantiation():
     cfg = {"type": "types.SimpleNamespace", "x": 42}
-    obj = build(cfg, recursive=True)  # no registry
+    obj = build(cfg)  # no registry
     assert isinstance(obj, SimpleNamespace)
     assert obj.x == 42
 
@@ -124,7 +124,7 @@ def test_instantiate_partial_class_from_registry():
 
 def test_missing_type_key():
     with pytest.raises(AssertionError):
-        build({"x": 1})
+        build({"x": 1}, recursive=False)
 
 
 def test_invalid_class_path():

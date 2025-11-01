@@ -29,7 +29,7 @@ def register(name: str = None, *, registry=default_registry) -> Callable:
 def build(
     cfg: Union[Dict, list, tuple, Any],
     registry: Registry | None = default_registry,
-    recursive: bool = False,
+    recursive: bool = True,
 ) -> Any:
     """Build an object from a configuration dictionary.
 
@@ -70,7 +70,7 @@ def build(
         }
     }
 
-    model = build(cfg, recursive=True)
+    model = build(cfg)
     ```
     """
     if not recursive:

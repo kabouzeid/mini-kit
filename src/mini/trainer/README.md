@@ -465,10 +465,10 @@ class MyTrainer(BaseTrainer):
         self.optimizer_cfg = optimizer
 
     def build_data_loader(self):
-        return build(self.data_cfg, recursive=True)
+        return build(self.data_cfg)
 
     def build_model(self):
-        model = build(self.model_cfg, recursive=True)
+        model = build(self.model_cfg)
         return model.to(self.device)
 
     def build_optimizer(self):

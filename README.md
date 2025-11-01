@@ -53,7 +53,7 @@ class Classifier:
 cfg = load_config("configs/model.py")
 cfg = apply_overrides(cfg, ["optimizer.lr=1e-3", "model.encoder.channels=128"])
 
-model = build(cfg["model"], recursive=True)
+model = build(cfg["model"])
 optimizer = build(cfg["optimizer"])
 ```
 

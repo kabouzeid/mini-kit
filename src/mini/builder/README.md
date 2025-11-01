@@ -41,7 +41,7 @@
         "head": {"type": "torch.nn.Linear", "*": [64, 10]},
     }
 
-    model = build(cfg, recursive=True)
+    model = build(cfg)
     ```
 
 3. **Fallback to import paths**
@@ -77,7 +77,7 @@ cfg = {
     ],
 }
 
-model = build(cfg, recursive=True)
+model = build(cfg)
 ```
 
 ### Positional arguments
@@ -121,7 +121,7 @@ Pass `registry=None` to skip registry lookups entirely.
 - `register(name: str | None = None, registry=default_registry) -> Callable`: convenience decorator for adding classes/functions to the registry.
 - `Registry.register(name: str | None = None) -> Callable`: decorator for adding classes/functions (defaults to the object name).
 - `Registry.get(name: str) -> Any`: fetch a registered object; returns `None` when missing.
-- `build(cfg, registry=default_registry, recursive=False) -> Any`: instantiate configs, optionally recursing into nested structures.
+- `build(cfg, registry=default_registry, recursive=True) -> Any`: instantiate configs, optionally recursing into nested structures.
   - Raises `AssertionError` when `cfg` lacks `"type"` and `ModuleNotFoundError` when lookups fail.
 
 ## Example Integration with `mini.config`
@@ -131,6 +131,6 @@ from mini.builder import build
 from mini.config import load_config
 
 cfg = load_config("configs/model.py")
-model = build(cfg["model"], recursive=True)
+model = build(cfg["model"])
 optimizer = build(cfg["optimizer"], params=model.parameters())
 ```
