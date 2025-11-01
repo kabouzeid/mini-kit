@@ -33,12 +33,12 @@ class BaseTrainer:
     def __init__(
         self,
         max_steps: int,
-        grad_clip: float | None,
-        max_non_finite_grad_retries: int | None,
-        mixed_precision: str | None,
-        gradient_accumulation_steps: int | None,
-        workspace: Path | str | None,
-        device: torch.device | str | int,
+        grad_clip: float | None = None,
+        max_non_finite_grad_retries: int | None = None,
+        mixed_precision: str | None = None,
+        gradient_accumulation_steps: int | None = None,
+        workspace: Path | str | None = None,
+        device: torch.device | str | int | None = None,
         no_sync_accumulate: bool = True,  # can make sense to disable this for FSDP
         state_dict_options: StateDictOptions | None = None,
         logger: Logger | None = None,
@@ -56,7 +56,9 @@ class BaseTrainer:
                 self.mixed_precision = None
             case _:
                 raise ValueError(f"Unsupported mixed precision: {mixed_precision}")
-        self.device = torch.device(device)
+        self.device = (
+            torch.device(device) if device is not None else torch.get_default_device()
+        )
         self.gradient_accumulation_steps = gradient_accumulation_steps or 1
         self.workspace = Path(workspace) if workspace is not None else None
         self.logger = logger if logger is not None else logging.getLogger(__name__)
