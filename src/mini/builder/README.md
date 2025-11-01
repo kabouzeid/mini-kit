@@ -128,9 +128,9 @@ Pass `registry=None` to skip registry lookups entirely.
 
 ```python
 from mini.builder import build
-from mini.config import load_config
+from mini.config import load
 
-cfg = load_config("configs/model.py")
+cfg = load("configs/model.py")
 model = build(cfg["model"])
 optimizer = build(cfg["optimizer"], params=model.parameters())
 ```

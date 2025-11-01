@@ -6,12 +6,12 @@
 
 ## Highlights
 
-- Load any Python config module or callable with `load_config`.
+- Load any Python config module or callable with `load`.
 - Compose configs via `parents = [...]` chains or by supplying multiple paths at once.
-- Parameterise configs with function arguments; pass runtime values with the `params` argument to `load_config`.
+- Parameterise configs with function arguments; pass runtime values with the `params` argument to `load`.
 - Adjust values on the fly using `apply_overrides` and a compact CLI-friendly syntax.
 - Control merge behaviour with the `delete()` and `replace(value)` verbs.
-- Snapshot final dictionaries back to Python files with `save_config`, or pretty-print them using `format_config`.
+- Snapshot final dictionaries back to Python files with `dump`, or pretty-print them using `format`.
 
 ---
 
@@ -54,9 +54,9 @@
 3. **Load everything** and apply runtime tweaks:
 
     ```python
-    from mini.config import apply_overrides, load_config
+    from mini.config import apply_overrides, load
 
-    cfg = load_config("configs/finetune.py", params={"num_classes": 5})
+    cfg = load("configs/finetune.py", params={"num_classes": 5})
     cfg = apply_overrides(cfg, ["optimizer.lr=1e-3"])
     ```
 
@@ -110,10 +110,10 @@ Parents are loaded depth-first (left to right), so later parents override earlie
 
 ### Loading Several Files at Once
 
-`load_config` also accepts a `Sequence[path]`. The behaviour mirrors parent chaining but is convenient when you want to compose parts dynamically:
+`load` also accepts a `Sequence[path]`. The behaviour mirrors parent chaining but is convenient when you want to compose parts dynamically:
 
 ```python
-cfg = load_config(
+cfg = load(
     [
         "configs/base.py",
         "configs/backbones/resnet.py",
@@ -159,14 +159,14 @@ Values are parsed with `ast.literal_eval`, so strings, numbers, booleans, lists,
 ```python
 # cli.py
 import argparse
-from mini.config import apply_overrides, load_config
+from mini.config import apply_overrides, load
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--config", default="configs/finetune.py")
 parser.add_argument("--overrides", nargs="*", default=[])
 args = parser.parse_args()
 
-cfg = load_config(args.config)
+cfg = load(args.config)
 cfg = apply_overrides(cfg, args.overrides)
 ```
 
@@ -215,7 +215,7 @@ merged = deep_merge_dicts(base, override)
 # }
 ```
 
-`deep_merge_dicts` is exported in case you want to reuse the merge algorithm elsewhere, but `load_config` and `apply_overrides` already rely on it internally.
+`deep_merge_dicts` is exported in case you want to reuse the merge algorithm elsewhere, but `load` and `apply_overrides` already rely on it internally.
 
 ---
 
@@ -225,14 +225,14 @@ Freeze the exact configuration you ran:
 
 ```python
 from pathlib import Path
-from mini.config import format_config, save_config
+from mini.config import dump, format
 
-print(format_config(cfg))  # Black-formatted string
-save_config(cfg, Path("runs/2024-01-10/config_snapshot.py"))
+print(format(cfg))  # Black-formatted string
+dump(cfg, Path("runs/2024-01-10/config_snapshot.py"))
 ```
 
-- `format_config` returns a nicely formatted string—useful for logging.
-- `save_config` writes the same representation to disk with a short header and `# fmt: off`. Because the file is valid Python, you can load it again with `load_config`.
+- `format` returns a nicely formatted string—useful for logging.
+- `dump` writes the same representation to disk with a short header and `# fmt: off`. Because the file is valid Python, you can load it again with `load`.
 
 ---
 
@@ -247,7 +247,7 @@ save_config(cfg, Path("runs/2024-01-10/config_snapshot.py"))
 
 ## API Reference
 
-- `load_config(path | Sequence[path], params: dict | None = None) -> dict`
+- `load(path | Sequence[path], params: dict | None = None) -> dict`
   - Imports each file, resolves parents recursively, merges dictionaries (last wins), and returns the final dictionary. When `config` is callable, it is invoked with merged defaults plus provided `params`.
 - `apply_overrides(cfg: dict, overrides: Sequence[str]) -> dict`
   - Applies CLI-style mutations in place and returns the dictionary for convenience.
@@ -257,7 +257,7 @@ save_config(cfg, Path("runs/2024-01-10/config_snapshot.py"))
   - Verb that deletes keys during merges.
 - `replace(value)`
   - Verb instructing the merge logic to replace a node instead of merging deeper.
-- `save_config(cfg: dict, path: os.PathLike) -> None`
+- `dump(cfg: dict, path: os.PathLike) -> None`
   - Writes `cfg` to disk using Black formatting.
-- `format_config(cfg: dict) -> str`
+- `format(cfg: dict) -> str`
   - Returns a Black-formatted string representation.

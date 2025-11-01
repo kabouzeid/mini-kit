@@ -24,7 +24,9 @@ def replace(value, /):
     return _ReplaceValue(value)
 
 
-def load_config(path: os.PathLike | Sequence[os.PathLike], params: dict | None = None):
+def load(path: os.PathLike | Sequence[os.PathLike], params: dict | None = None):
+    """Load config modules from `path`, apply params, and merge the results."""
+
     paths = [path] if isinstance(path, (str, os.PathLike)) else path
     specs = [spec for p in paths for spec in _collect_config_specs(Path(p))]
 
@@ -73,7 +75,9 @@ def _defaults_args(f: Callable) -> dict:
     }
 
 
-def save_config(config: dict, path: os.PathLike):
+def dump(config: dict, path: os.PathLike):
+    """Persist a config dictionary to a Python file with Black formatting."""
+
     import black
 
     # we could also use pprint.pformat, but black looks nicer
@@ -85,7 +89,9 @@ def save_config(config: dict, path: os.PathLike):
         f.write(config_str)
 
 
-def format_config(config: dict) -> str:
+def format(config: dict) -> str:
+    """Return a Black-formatted string for the provided config dictionary."""
+
     import black
 
     return black.format_str(repr(config), mode=black.Mode())

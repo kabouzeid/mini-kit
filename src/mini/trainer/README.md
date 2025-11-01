@@ -450,7 +450,7 @@ from torch import nn
 from torch.utils.data import IterableDataset
 
 from mini.builder import register, build
-from mini.config import load_config
+from mini.config import load
 from mini.trainer import BaseTrainer, CheckpointingHook, ProgressHook
 
 logging.basicConfig(level=logging.INFO)
@@ -518,7 +518,7 @@ try:
         world_size=1, rank=0, store=torch.distributed.HashStore(), device_id=device
     )
 
-    cfg = load_config("configs/train.py")
+    cfg = load("configs/train.py")
     trainer = build(cfg | {"device": device}, recursive=False)
     trainer.train()
 finally:

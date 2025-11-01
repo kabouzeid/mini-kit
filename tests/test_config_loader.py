@@ -1,7 +1,7 @@
 import textwrap
 from pathlib import Path
 
-from mini.config import load_config
+from mini.config import load
 
 
 def _write(path: Path, code: str):
@@ -40,7 +40,7 @@ def test_parent_precedence(tmp_path):
         """,
     )
 
-    cfg = load_config(child)
+    cfg = load(child)
     assert cfg == {"lr": 0.01, "optim": "sgd", "batch_size": 64}
 
 
@@ -66,7 +66,7 @@ def test_key_deletion(tmp_path):
         """,
     )
 
-    cfg = load_config(child)
+    cfg = load(child)
     assert cfg == {"model": {"name": "resnet"}}
 
 
@@ -92,7 +92,7 @@ def test_key_replacement(tmp_path):
         """,
     )
 
-    cfg = load_config(child)
+    cfg = load(child)
     assert cfg == {"model": {"name": "vit", "activation": "relu"}}
 
 
@@ -106,7 +106,7 @@ def test_load_multiple_configs_order(tmp_path):
     b = tmp_path / "b.py"
     _write(b, "config = {'b': 3, 'c': 4}")
 
-    merged = load_config([a, b])
+    merged = load([a, b])
     assert merged == {"a": 1, "b": 3, "c": 4}
 
 
@@ -121,11 +121,11 @@ def test_param_injection(tmp_path):
     )
 
     # Without injection we get defaults
-    cfg_default = load_config(cfg_path)
+    cfg_default = load(cfg_path)
     assert cfg_default == {"steps": 1000}
 
     # With injection we override usages consistently
-    cfg_override = load_config(cfg_path, params={"steps": 5000})
+    cfg_override = load(cfg_path, params={"steps": 5000})
     assert cfg_override == {"steps": 5000}
 
 
@@ -149,11 +149,11 @@ def test_child_param_injection(tmp_path):
     )
 
     # Without injection we get defaults
-    cfg_default = load_config(cfg_path)
+    cfg_default = load(cfg_path)
     assert cfg_default == {"steps": 1000}
 
     # With child injection we override usages consistently
-    cfg_override = load_config(child_cfg_path)
+    cfg_override = load(child_cfg_path)
     assert cfg_override == {"steps": 5000}
 
 
@@ -176,11 +176,11 @@ def test_child_param_inheritance(tmp_path):
         """,
     )
 
-    cfg_default = load_config(cfg_path)
+    cfg_default = load(cfg_path)
     assert cfg_default == {"steps": 1000}
 
     # The child inherits the parent's default for steps
-    cfg_override = load_config(child_cfg_path)
+    cfg_override = load(child_cfg_path)
     assert cfg_override == {"steps": 1000, "warmup_steps": 100}
 
 
@@ -217,7 +217,7 @@ def test_complex_child_param_inheritance(tmp_path):
         """,
     )
 
-    cfg = load_config(base_cfg_path, {"extra": True})
+    cfg = load(base_cfg_path, {"extra": True})
     assert cfg == {
         "extra": True,
         "steps": 3000,
