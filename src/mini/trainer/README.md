@@ -417,34 +417,52 @@ Using `mini.trainer` with `mini.config` and `mini.builder`:
 ```python
 # configs/train.py
 config = {
-    "trainer": {
-        "type": "MyTrainer",
-        "max_steps": 10_000,
-        "grad_clip": 1.0,
-        "mixed_precision": "bf16",
-        "gradient_accumulation_steps": 4,
-        "workspace": "./runs/experiment_1",
-        "device": "cuda",
+    "type": "MyTrainer",
+    "max_steps": 10_000,
+    "grad_clip": 1.0,
+    "mixed_precision": "bf16",
+    "gradient_accumulation_steps": 4,
+    "workspace": "./runs/experiment_1",
+    "data": {
+        "type": "torch.utils.data.DataLoader",
+        "dataset": {"type": "ToyDataset"},
+        "batch_size": 32,
     },
-    "data": {"batch_size": 32, "num_workers": 4},
-    "model": {"type": "MyModel", "hidden_size": 128},
-    "optimizer": {"type": "torch.optim.AdamW", "lr": 3e-4},
+    "model": {
+        "type": "MyModel",
+        "in_dim": 784,
+        "hidden_dim": 128,
+        "out_dim": 10,
+    },
+    "optimizer": {
+        "type": "torch.optim.AdamW",
+        "lr": 3e-4,
+    },
 }
 ```
 
 ```python
 # train.py
+import logging
+
+import torch
+from torch import nn
+from torch.utils.data import IterableDataset
+
 from mini.builder import REGISTRY, build_from_cfg
 from mini.config import load_config
-from mini.trainer import BaseTrainer, ProgressHook, CheckpointingHook
+from mini.trainer import BaseTrainer, CheckpointingHook, ProgressHook
+
+logging.basicConfig(level=logging.INFO)
+
 
 @REGISTRY.register()
 class MyTrainer(BaseTrainer):
-    def __init__(self, data_cfg, model_cfg, optimizer_cfg, **kwargs):
+    def __init__(self, data, model, optimizer, **kwargs):
         super().__init__(**kwargs)
-        self.data_cfg = data_cfg
-        self.model_cfg = model_cfg
-        self.optimizer_cfg = optimizer_cfg
+        self.data_cfg = data
+        self.model_cfg = model
+        self.optimizer_cfg = optimizer
 
     def build_data_loader(self):
         return build_from_cfg(self.data_cfg, recursive=True)
@@ -454,10 +472,7 @@ class MyTrainer(BaseTrainer):
         return model.to(self.device)
 
     def build_optimizer(self):
-        return build_from_cfg(
-            self.optimizer_cfg,
-            params=self.model.parameters(),
-        )
+        return build_from_cfg(self.optimizer_cfg | {"params": self.model.parameters()})
 
     def forward(self, input):
         x, y = input
@@ -469,13 +484,45 @@ class MyTrainer(BaseTrainer):
 
     def build_hooks(self):
         return [
-            ProgressHook(interval=10, with_records=True),
+            ProgressHook(interval=1, with_records=True),
             CheckpointingHook(interval=1000, path=self.workspace / "checkpoints"),
         ]
 
-cfg = load_config("configs/train.py")
-trainer = build_from_cfg(cfg["trainer"], recursive=True)
-trainer.train()
+
+@REGISTRY.register()
+class ToyDataset(IterableDataset):
+    def __iter__(self):
+        while True:
+            x = torch.randn(1, 28, 28)
+            y = torch.randint(0, 10, (1,)).item()
+            yield x.view(-1), y
+
+
+@REGISTRY.register()
+class MyModel(nn.Module):
+    def __init__(self, in_dim: int, hidden_dim: int, out_dim: int):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(in_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, out_dim),
+        )
+
+    def forward(self, x):
+        return self.net(x)
+
+
+try:
+    device = torch.device(0)
+    torch.distributed.init_process_group(
+        world_size=1, rank=0, store=torch.distributed.HashStore(), device_id=device
+    )
+
+    cfg = load_config("configs/train.py")
+    trainer = build_from_cfg(cfg | {"device": device}, recursive=False)
+    trainer.train()
+finally:
+    torch.distributed.destroy_process_group()
 ```
 
 This approach keeps your training code declarative and easy to modify via config files.
