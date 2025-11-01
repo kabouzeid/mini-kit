@@ -14,12 +14,13 @@ Minimal, hackable building blocks for deep learning projects. The goal is to kee
 pip install mini-kit
 ```
 
-You now have two tiny helpers that play nicely together:
+You now have three tiny helpers that play nicely together:
 
 1. `mini.config` loads plain-Python configs. Start with a single dictionary, then grow into composable templates and parent chains without learning a new DSL.
 2. `mini.builder` turns dictionaries into Python objects. Supports both registry shortcuts and fully qualified import paths.
+3. `mini.trainer` provides a lightweight training framework with hooks for logging, checkpointing, and customization.
 
-The example below shows both pieces in action.
+The example below shows `mini.config` and `mini.builder` in action.
 
 ```python
 # configs/model.py
@@ -64,5 +65,4 @@ More details are in each subpackage's own README:
 
 - `mini.config`: [README](src/mini/config/README.md)
 - `mini.builder`: [README](src/mini/builder/README.md)
-
-The trainer package docs are still work in progress.
+- `mini.trainer`: [README](src/mini/trainer/README.md)
