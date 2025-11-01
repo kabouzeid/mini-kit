@@ -8,20 +8,14 @@ from functools import reduce
 from pathlib import Path
 from typing import Callable, Sequence
 
-_NoValue = object()  # Sentinel value to delete config entries
+
+class Delete:
+    pass
 
 
-class _ReplaceValue:
+class Replace:
     def __init__(self, value, /):
         self.value = value
-
-
-def delete():
-    return _NoValue
-
-
-def replace(value, /):
-    return _ReplaceValue(value)
 
 
 def load(path: os.PathLike | Sequence[os.PathLike], params: dict | None = None):
@@ -102,9 +96,9 @@ def deep_merge_dicts(base: dict, override: dict):
     for k, v in override.items():
         if k in base and isinstance(base[k], dict) and isinstance(v, dict):
             base[k] = deep_merge_dicts(base[k], v)
-        elif v is _NoValue:
+        elif isinstance(v, Delete):
             base.pop(k, None)
-        elif isinstance(v, _ReplaceValue):
+        elif isinstance(v, Replace):
             base[k] = v.value
         else:
             base[k] = v

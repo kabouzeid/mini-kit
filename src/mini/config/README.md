@@ -10,7 +10,7 @@
 - Compose configs via `parents = [...]` chains or by supplying multiple paths at once.
 - Parameterise configs with function arguments; pass runtime values with the `params` argument to `load`.
 - Adjust values on the fly using `apply_overrides` and a compact CLI-friendly syntax.
-- Control merge behaviour with the `delete()` and `replace(value)` verbs.
+- Control merge behaviour with the `Delete()` and `Replace(value)` verbs.
 - Snapshot final dictionaries back to Python files with `dump`, or pretty-print them using `format`.
 
 ---
@@ -183,12 +183,12 @@ python cli.py --overrides optimizer.lr=2e-4 trainer.hooks+=logging
 When configs are layered, `mini.config` walks the override dictionary and combines it with the base using the following rules:
 
 - If both base and override values are dictionaries, merge them recursively.
-- If the override value is `delete()`, remove the key entirely (note that this is different from assigning e.g., a `None` value).
-- If the override value is `replace(value)`, use `value` as-is without recursive merging.
+- If the override value is `Delete()`, remove the key entirely (note that this is different from assigning e.g., a `None` value).
+- If the override value is `Replace(value)`, use `value` as-is without recursive merging.
 - Otherwise, assign the override value directly. Lists, tuples, numbers, strings, and other types always replace the prior value.
 
 ```python
-from mini.config import delete, replace, deep_merge_dicts
+from mini.config import Delete, Replace, deep_merge_dicts
 
 base = {
     "optimizer": {
@@ -201,8 +201,8 @@ base = {
 
 override = {
     "optimizer": {
-        "weight_decay": delete(),
-        "schedule": replace({"type": "cosine", "t_max": 20_000}),  # whole dict swapped
+        "weight_decay": Delete(),
+        "schedule": Replace({"type": "cosine", "t_max": 20_000}),  # whole dict swapped
     },
     "trainer": {"steps": 10_000, "hooks": ["progress"]},
 }
@@ -253,9 +253,9 @@ dump(cfg, Path("runs/2024-01-10/config_snapshot.py"))
   - Applies CLI-style mutations in place and returns the dictionary for convenience.
 - `deep_merge_dicts(base: dict, override: dict) -> dict`
   - Recursive merge helper exposed for advanced use-cases.
-- `delete()`
+- `Delete()`
   - Verb that deletes keys during merges.
-- `replace(value)`
+- `Replace(value)`
   - Verb instructing the merge logic to replace a node instead of merging deeper.
 - `dump(cfg: dict, path: os.PathLike) -> None`
   - Writes `cfg` to disk using Black formatting.

@@ -60,9 +60,9 @@ def test_key_deletion(tmp_path):
     _write(
         child,
         """
-        from mini.config import delete
+        from mini.config import Delete
         parents = ["parent.py"]
-        config  = {"model": {"dropout": delete()}}
+        config  = {"model": {"dropout": Delete()}}
         """,
     )
 
@@ -86,9 +86,9 @@ def test_key_replacement(tmp_path):
     _write(
         child,
         """
-        from mini.config import replace
+        from mini.config import Replace
         parents = ["parent.py"]
-        config  = {"model": replace({"name": "vit", "activation": "relu"})}
+        config  = {"model": Replace({"name": "vit", "activation": "relu"})}
         """,
     )
 
