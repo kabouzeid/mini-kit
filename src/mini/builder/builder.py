@@ -19,16 +19,16 @@ class Registry:
         return self._store.get(name)
 
 
-default_registry = Registry()
+REGISTRY = Registry()
 
 
-def register(name: str = None, *, registry=default_registry) -> Callable:
+def register(name: str = None, *, registry=REGISTRY) -> Callable:
     return registry.register(name)
 
 
 def build(
     cfg: Union[Dict, list, tuple, Any],
-    registry: Registry | None = default_registry,
+    registry: Registry | None = REGISTRY,
     recursive: bool = True,
 ) -> Any:
     """Build an object from a configuration dictionary.
