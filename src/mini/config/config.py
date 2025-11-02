@@ -1,9 +1,8 @@
 import ast
-import importlib.util
 import inspect
 import os
 import re
-import sys
+import runpy
 from functools import reduce
 from pathlib import Path
 from typing import Callable, Sequence
@@ -42,15 +41,12 @@ def _collect_config_specs(path: os.PathLike) -> list[tuple[dict, dict]]:
     Return the flattened inheritance chain for the config at `path`. Ordered from the farthest parent first.
     """
     path = Path(path).resolve()
-    spec = importlib.util.spec_from_file_location("config_module", path)
-    config_module = importlib.util.module_from_spec(spec)
-    sys.modules["config_module"] = config_module
-    spec.loader.exec_module(config_module)
+    config_module_globs = runpy.run_path(str(path), run_name="__config__")
 
-    config = getattr(config_module, "config", {})
+    config = config_module_globs.get("config", {})
     params = _defaults_args(config) if callable(config) else {}
 
-    parents = getattr(config_module, "parents", None)
+    parents = config_module_globs.get("parents", None)
     if isinstance(parents, str):
         parents = [parents]
 
