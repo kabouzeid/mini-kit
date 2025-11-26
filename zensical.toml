@@ -101,8 +101,6 @@ nav = [
 #
 #favicon = "assets/images/favicon.png"
 
-logo = "https://github.com/user-attachments/assets/e8f5ce11-1b57-49d0-9d20-a3ee587a4498"
-
 # Zensical supports more than 60 different languages. This means that the
 # labels and tooltips that Zensical's templates produce are translated.
 # The "language" option allows you to set the language used. This language

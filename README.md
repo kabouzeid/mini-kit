@@ -7,6 +7,7 @@
 Minimal, hackable building blocks for deep learning projects. The goal is to keep every layer small enough that you can read it, tweak it, or drop it into your own codebase.
 
 [![PyPI version](https://img.shields.io/pypi/v/mini-kit.svg)](https://pypi.python.org/pypi/mini-kit)
+![docs](https://img.shields.io/badge/docs-brightgreen?link=https%3A%2F%2Fkabouzeid.github.io%2Fmini-kit%2F)
 
 ## Quick Start
 
