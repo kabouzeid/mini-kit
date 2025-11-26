@@ -2,165 +2,63 @@
 icon: lucide/rocket
 ---
 
-# Get started
+# mini-kit
 
-For full documentation visit [zensical.org](https://zensical.org/docs/).
+Minimal, hackable building blocks for deep learning projects. Each layer is small enough to read, tweak, or drop into your own codebase.
 
-## Commands
+## Quick start
 
-* [`zensical new`][new] - Create a new project
-* [`zensical serve`][serve] - Start local web server
-* [`zensical build`][build] - Build your site
-
-  [new]: https://zensical.org/docs/usage/new/
-  [serve]: https://zensical.org/docs/usage/preview/
-  [build]: https://zensical.org/docs/usage/build/
-
-## Examples
-
-### Admonitions
-
-> Go to [documentation](https://zensical.org/docs/authoring/admonitions/)
-
-!!! note
-
-    This is a **note** admonition. Use it to provide helpful information.
-
-!!! warning
-
-    This is a **warning** admonition. Be careful!
-
-### Details
-
-> Go to [documentation](https://zensical.org/docs/authoring/admonitions/#collapsible-blocks)
-
-??? info "Click to expand for more info"
-    
-    This content is hidden until you click to expand it.
-    Great for FAQs or long explanations.
-
-## Code Blocks
-
-> Go to [documentation](https://zensical.org/docs/authoring/code-blocks/)
-
-``` python hl_lines="2" title="Code blocks"
-def greet(name):
-    print(f"Hello, {name}!") # (1)!
-
-greet("Python")
+```bash
+pip install mini-kit
 ```
 
-1.  > Go to [documentation](https://zensical.org/docs/authoring/code-blocks/#code-annotations)
+You now have three helpers that work together:
 
-    Code annotations allow to attach notes to lines of code.
+- `mini.config` loads plain-Python configs with parents, parameters, and CLI overrides.
+- `mini.builder` turns dictionaries into Python objects via registries or dotted import paths.
+- `mini.trainer` runs a lightweight PyTorch training loop with hooks for logging and checkpointing.
 
-Code can also be highlighted inline: `#!python print("Hello, Python!")`.
+### Minimal example
 
-## Content tabs
-
-> Go to [documentation](https://zensical.org/docs/authoring/content-tabs/)
-
-=== "Python"
-
-    ``` python
-    print("Hello from Python!")
-    ```
-
-=== "Rust"
-
-    ``` rs
-    println!("Hello from Rust!");
-    ```
-
-## Diagrams
-
-> Go to [documentation](https://zensical.org/docs/authoring/diagrams/)
-
-``` mermaid
-graph LR
-  A[Start] --> B{Error?};
-  B -->|Yes| C[Hmm...];
-  C --> D[Debug];
-  D --> B;
-  B ---->|No| E[Yay!];
-```
-
-## Footnotes
-
-> Go to [documentation](https://zensical.org/docs/authoring/footnotes/)
-
-Here's a sentence with a footnote.[^1]
-
-Hover it, to see a tooltip.
-
-[^1]: This is the footnote.
-
-
-## Formatting
-
-> Go to [documentation](https://zensical.org/docs/authoring/formatting/)
-
-- ==This was marked (highlight)==
-- ^^This was inserted (underline)^^
-- ~~This was deleted (strikethrough)~~
-- H~2~O
-- A^T^A
-- ++ctrl+alt+del++
-
-## Icons, Emojis
-
-> Go to [documentation](https://zensical.org/docs/authoring/icons-emojis/)
-
-* :sparkles: `:sparkles:`
-* :rocket: `:rocket:`
-* :tada: `:tada:`
-* :memo: `:memo:`
-* :eyes: `:eyes:`
-
-## Maths
-
-> Go to [documentation](https://zensical.org/docs/authoring/math/)
-
-$$
-\cos x=\sum_{k=0}^{\infty}\frac{(-1)^k}{(2k)!}x^{2k}
-$$
-
-!!! warning "Needs configuration"
-    Note that MathJax is included via a `script` tag on this page and is not
-    configured in the generated default configuration to avoid including it
-    in a pages that do not need it. See the documentation for details on how
-    to configure it on all your pages if they are more Maths-heavy than these
-    simple starter pages.
-
-<script id="MathJax-script" async src="https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"></script>
-<script>
-  window.MathJax = {
-    tex: {
-      inlineMath: [["\\(", "\\)"]],
-      displayMath: [["\\[", "\\]"]],
-      processEscapes: true,
-      processEnvironments: true
+```python
+# configs/model.py
+config = {
+    "model": {
+        "type": "Classifier",
+        "encoder": {"type": "Encoder", "channels": 64},
+        "head": {"type": "torch.nn.Linear", "*": [64, 10]},
     },
-    options: {
-      ignoreHtmlClass: ".*|",
-      processHtmlClass: "arithmatex"
-    }
-  };
-</script>
+    "optimizer": {"type": "torch.optim.AdamW", "lr": 3e-4},
+}
+```
 
-## Task Lists
+```python
+from mini.builder import register, build
+from mini.config import apply_overrides, load
 
-> Go to [documentation](https://zensical.org/docs/authoring/lists/#using-task-lists)
+@register()
+class Encoder:
+    def __init__(self, channels: int):
+        self.channels = channels
 
-* [x] Install Zensical
-* [x] Configure `zensical.toml`
-* [x] Write amazing documentation
-* [ ] Deploy anywhere
+@register()
+class Classifier:
+    def __init__(self, encoder, head):
+        self.encoder = encoder
+        self.head = head
 
-## Tooltips
+cfg = load("configs/model.py")
+cfg = apply_overrides(cfg, ["optimizer.lr=1e-3", "model.encoder.channels=128"])
 
-> Go to [documentation](https://zensical.org/docs/authoring/tooltips/)
+model = build(cfg["model"])
+optimizer = build(cfg["optimizer"])
+```
 
-[Hover me][example]
+- `load` executes Python config files; `apply_overrides` tweaks nested keys with CLI-friendly syntax.
+- `build` resolves `"type"` from a registry or import path and wires dependencies for you.
 
-  [example]: https://example.com "I'm a tooltip!"
+## Packages
+
+- [mini.config](config.md): Python-first configs with parents, parameters, overrides, and snapshots.
+- [mini.builder](builder.md): Registry-based factory that instantiates nested dictionaries.
+- [mini.trainer](trainer.md): Minimal PyTorch trainer with hooks for progress, checkpointing, and logging.

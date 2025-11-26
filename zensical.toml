@@ -48,10 +48,12 @@ Copyright &copy; 2025 The authors
 # can be defined using TOML syntax.
 #
 # Read more: https://zensical.org/docs/setup/navigation/
-# nav = [
-#   { "Get started" = "index.md" },
-#   { "Markdown in 5min" = "markdown.md" },
-# ]
+nav = [
+  { "Overview" = "index.md" },
+  { "mini.config" = "config.md" },
+  { "mini.builder" = "builder.md" },
+  { "mini.trainer" = "trainer.md" },
+]
 
 # With the "extra_css" option you can add your own CSS styling to customize
 # your Zensical project according to your needs. You can add any number of
@@ -98,6 +100,8 @@ Copyright &copy; 2025 The authors
 # - https://developer.mozilla.org/en-US/docs/Glossary/Favicon
 #
 #favicon = "assets/images/favicon.png"
+
+logo = "https://github.com/user-attachments/assets/e8f5ce11-1b57-49d0-9d20-a3ee587a4498"
 
 # Zensical supports more than 60 different languages. This means that the
 # labels and tooltips that Zensical's templates produce are translated.

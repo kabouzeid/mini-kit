@@ -1,8 +1,12 @@
+---
+icon: lucide/flag
+---
+
 # mini.trainer
 
 `mini.trainer` is a minimalist PyTorch training loop that centralizes the routine sequencing (state builds, accumulation, retries) while leaving distributed setup and model construction under user control.
 
-## What BaseTrainer Handles
+## What BaseTrainer handles
 
 `BaseTrainer` stays intentionally small. Out of the box it:
 
@@ -12,19 +16,19 @@
 
 Because nearly every behavior lives behind hooks, most real-world setups fit without forking the code. When you do need something exotic, the trainer is compact enough to copy into your project and customize.
 
-## Key Capabilities
+## Key capabilities
 
-- **Subclass contract**: Implement the `build_*()` factories and `forward()`, then rely on the provided `train()` loop.
-- **Distributed-ready**: Gradient accumulation, autocast, gradient scaling, `no_sync`, and non-finite checks work seamlessly with PyTorch DDP and FSDP.
-- **State management**: Save and restore the full training state (model, optimizer, scheduler, grad scaler, current step and hooks) with correct ordering and distributed-aware handling.
-- **Hook system**: Progress, checkpointing, logging (e.g., wandb), EMA, CUDA memory stats, and validation are all hooks you can combine or extend.
-- **Instrumentation coverage**: Step/data timings, gradient norms, learning rates, and user metrics are captured for logging hooks to consume.
+- Subclass contract: implement the `build_*()` factories and `forward()`, then rely on the provided `train()` loop.
+- Distributed-ready: gradient accumulation, autocast, gradient scaling, `no_sync`, and non-finite checks work seamlessly with PyTorch DDP and FSDP.
+- State management: save and restore the full training state (model, optimizer, scheduler, grad scaler, current step and hooks) with correct ordering and distributed-aware handling.
+- Hook system: progress, checkpointing, logging (e.g., wandb), EMA, CUDA memory stats, and validation are all hooks you can combine or extend.
+- Instrumentation coverage: step/data timings, gradient norms, learning rates, and user metrics are captured for logging hooks to consume.
 
 ---
 
-## Quick Start
+## Quick start
 
-1. **Subclass `BaseTrainer` and implement the required methods:**
+1. Subclass `BaseTrainer` and implement the required methods:
 
     ```python
     from mini.trainer import BaseTrainer
@@ -60,7 +64,7 @@ Because nearly every behavior lives behind hooks, most real-world setups fit wit
             return loss, records
     ```
 
-2. **Create and train:**
+2. Create and train:
 
     ```python
     trainer = MyTrainer(
@@ -76,7 +80,7 @@ Because nearly every behavior lives behind hooks, most real-world setups fit wit
     trainer.train()
     ```
 
-3. **Add hooks for logging, checkpointing, and more:**
+3. Add hooks for logging, checkpointing, and more:
 
     ```python
     from mini.trainer import BaseTrainer, ProgressHook, CheckpointingHook, LoggingHook
@@ -95,17 +99,17 @@ Because nearly every behavior lives behind hooks, most real-world setups fit wit
 
 ---
 
-## Why mini.trainer?
+## Why mini.trainer
 
-- **Lightning** takes a framework-style approach: the user defines modules and callbacks while Lightning constructs the training loop, manages distributed wrappers, and coordinates evaluation. This removes boilerplate but makes it harder to diverge from the framework’s lifecycle or debug lower-level issues when the defaults do not match your setup.
-- **Hugging Face Accelerate** sits in the middle: you still write the loop, yet the library configures devices, mixed precision, and distributed collectives through helper objects. That consolidation keeps the API uniform across hardware, but the indirection can obscure which PyTorch primitives run at each stage. Debugging becomes hard, as documentation is sparse and the code is complex.
-- **mini.trainer** assumes the complementary responsibilities. You hold on to device setup, process groups, and any model wrapping, while the trainer focuses on sequencing: it builds components in the correct order, runs the step loop with accumulation and retry policies, and surfaces metrics to hooks. The implementation stays small enough to audit or copy when a project needs to diverge.
+- Lightning takes a framework-style approach: the user defines modules and callbacks while Lightning constructs the training loop, manages distributed wrappers, and coordinates evaluation. This removes boilerplate but makes it harder to diverge from the framework’s lifecycle or debug lower-level issues when the defaults do not match your setup.
+- Hugging Face Accelerate sits in the middle: you still write the loop, yet the library configures devices, mixed precision, and distributed collectives through helper objects. That consolidation keeps the API uniform across hardware, but the indirection can obscure which PyTorch primitives run at each stage. Debugging becomes hard, as documentation is sparse and the code is complex.
+- mini.trainer assumes the complementary responsibilities. You hold on to device setup, process groups, and any model wrapping, while the trainer focuses on sequencing: it builds components in the correct order, runs the step loop with accumulation and retry policies, and surfaces metrics to hooks. The implementation stays small enough to audit or copy when a project needs to diverge.
 
 ---
 
-## Core Concepts
+## Core concepts
 
-### The Training Loop
+### The training loop
 
 `BaseTrainer.train()` orchestrates the training process:
 
@@ -116,40 +120,40 @@ Because nearly every behavior lives behind hooks, most real-world setups fit wit
 
 You typically don't override `train()` itself; implement the `build_*()` and `forward()` methods instead.
 
-### Required Methods
+### Required methods
 
 Subclasses must implement:
 
-- **`build_data_loader() -> Iterable`**: Return an iterable that yields training data.
-- **`build_model() -> nn.Module`**: Construct and return the model.
-- **`build_optimizer() -> torch.optim.Optimizer`**: Create the optimizer.
-- **`forward(input) -> tuple[torch.Tensor | None, dict]`**: Perform a forward pass and return `(loss, records)`.
+- `build_data_loader() -> Iterable`: Return an iterable that yields training data.
+- `build_model() -> nn.Module`: Construct and return the model.
+- `build_optimizer() -> torch.optim.Optimizer`: Create the optimizer.
+- `forward(input) -> tuple[torch.Tensor | None, dict]`: Perform a forward pass and return `(loss, records)`.
   - `loss`: The scalar loss tensor. If `None`, the backward pass is skipped and the step is retried.
   - `records`: A nested dict of numeric metrics that you want to log (e.g., `{"accuracy": 0.95, "metrics": {"f1": 0.9}}`).
 
-### Optional Methods
+### Optional methods
 
 You can override these to customize behavior:
 
-- **`build_lr_scheduler() -> torch.optim.lr_scheduler.LRScheduler | None`**: Return a learning rate scheduler (default: `None`).
-- **`build_grad_scaler() -> torch.amp.GradScaler`**: Customize the gradient scaler for mixed precision (default: enabled for FP16).
-- **`build_hooks() -> list[BaseHook]`**: Return a list of hooks (default: `[]`).
+- `build_lr_scheduler() -> torch.optim.lr_scheduler.LRScheduler | None`: Return a learning rate scheduler (default: `None`).
+- `build_grad_scaler() -> torch.amp.GradScaler`: Customize the gradient scaler for mixed precision (default: enabled for FP16).
+- `build_hooks() -> list[BaseHook]`: Return a list of hooks (default: `[]`).
 
-### Gradient Accumulation
+### Gradient accumulation
 
 Set `gradient_accumulation_steps` to accumulate gradients over multiple forward/backward passes before updating parameters. The trainer automatically:
 
 - Scales the loss by `1 / gradient_accumulation_steps`.
 - Calls `model.no_sync()` during accumulation steps (if using DDP/FSDP) to skip gradient synchronization until the final step.
 
-### Mixed Precision
+### Mixed precision
 
 Pass `mixed_precision="fp16"` or `"bf16"` to enable automatic mixed precision training with `torch.autocast`. The trainer:
 
 - Uses `torch.amp.GradScaler` for FP16 to handle gradient scaling.
 - Disables the scaler for BF16 (which doesn't need gradient scaling).
 
-### Non-Finite Gradient Handling
+### Non-finite gradient handling
 
 If gradients become NaN or Inf, the trainer can retry the step:
 
@@ -157,7 +161,7 @@ If gradients become NaN or Inf, the trainer can retry the step:
 - The trainer will reset gradients and re-run the forward/backward pass.
 - If retries are exhausted, a `RuntimeError` is raised.
 
-### State Management
+### State management
 
 Save and load the full (possibly distributed) training state (model, optimizer, scheduler, hooks):
 
@@ -175,18 +179,18 @@ The `CheckpointingHook` automates this including saving and loading from disk fo
 
 ## Hooks
 
-Hooks let you inject custom logic at key points in the training loop. All hooks inherit from `BaseHook` and can override these methods:
+Hooks let you inject custom logic at key points in the training loop. All hooks inherit from `BaseHook` and can override:
 
-- `on_before_train(trainer)`: Called once before training starts.
-- `on_after_train(trainer)`: Called once after training finishes.
-- `on_before_step(trainer)`: Called before each training step.
-- `on_after_step(trainer)`: Called after each training step.
-- `on_log(trainer, records, dry_run)`: Called when the trainer logs metrics.
-- `on_log_images(trainer, records, dry_run)`: Called when the trainer logs images.
-- `on_state_dict(trainer, state_dict)`: Called when saving a checkpoint.
-- `on_load_state_dict(trainer, state_dict)`: Called when loading a checkpoint.
+- `on_before_train(trainer)`: called once before training starts.
+- `on_after_train(trainer)`: called once after training finishes.
+- `on_before_step(trainer)`: called before each training step.
+- `on_after_step(trainer)`: called after each training step.
+- `on_log(trainer, records, dry_run)`: called when the trainer logs metrics.
+- `on_log_images(trainer, records, dry_run)`: called when the trainer logs images.
+- `on_state_dict(trainer, state_dict)`: called when saving a checkpoint.
+- `on_load_state_dict(trainer, state_dict)`: called when loading a checkpoint.
 
-### Built-in Hooks
+### Built-in hooks
 
 #### `ProgressHook`
 
@@ -201,7 +205,7 @@ ProgressHook(
 )
 ```
 
-**Example output:**
+Example output:
 
 ```
 Step   100/10000: step 0.2500s data 0.0100s eta 6:00:00 loss 0.5234 grad_norm 2.3456 lr_0 1.00e-03
@@ -219,7 +223,6 @@ LoggingHook(
 ```
 
 Implement `trainer.log()` or add a hook that handles `on_log` (e.g. WandbHook) to handle the aggregated records.
-```
 
 #### `CheckpointingHook`
 
@@ -292,13 +295,13 @@ Call `trainer.log_images({"image_name": pil_image})` to save images.
 
 ---
 
-## Advanced Features
+## Advanced features
 
-### Distributed Training
+### Distributed training
 
 The trainer integrates with PyTorch's DDP and FSDP. Just wrap your model with `DistributedDataParallel` or `FullyShardedDataParallel` in `build_model()`.
 
-### Unwrapping Models
+### Unwrapping models
 
 The trainer provides a helper to unwrap compiled, distributed, or EMA-wrapped models:
 
@@ -310,7 +313,7 @@ unwrapped = trainer.unwrapped_model
 
 This is useful for accessing the base model's methods or parameters.
 
-### Custom Hooks
+### Custom hooks
 
 Create your own hooks by subclassing `BaseHook`:
 
@@ -366,11 +369,11 @@ Used internally by hooks to aggregate metrics.
 
 ---
 
-## API Reference
+## API reference
 
 ### `BaseTrainer`
 
-**Constructor Parameters:**
+Constructor parameters:
 
 - `max_steps` (int): Total number of training steps.
 - `grad_clip` (float | None): Maximum gradient norm for clipping (default: `None`).
@@ -383,7 +386,7 @@ Used internally by hooks to aggregate metrics.
 - `state_dict_options` (StateDictOptions | None): Options for distributed state dict handling (default: `None`).
 - `logger` (Logger | None): Python logger instance (default: creates a new logger).
 
-**Key Attributes:**
+Key attributes:
 
 - `step` (int): Current training step (0 before training starts).
 - `model` (nn.Module): The model being trained.
@@ -393,7 +396,7 @@ Used internally by hooks to aggregate metrics.
 - `hooks` (list[BaseHook]): List of active hooks.
 - `step_info` (dict): Metrics from the current step (populated during `_run_step()`).
 
-**Methods:**
+Methods:
 
 - `train()`: Start training.
 - `state_dict() -> dict`: Get the full training state (e.g. called by a checkpoint hook).
@@ -405,12 +408,12 @@ Used internally by hooks to aggregate metrics.
 
 ## Tips
 
-- **Use hooks for side effects**: Logging, checkpointing, and validation are best handled via hooks.
-- **Combine with `mini.config` and `mini.builder`**: Define your training setup in config files and use the builder to instantiate the trainer.
+- Use hooks for side effects: logging, checkpointing, and validation are best handled via hooks.
+- Combine with `mini.config` and `mini.builder`: define your training setup in config files and use the builder to instantiate the trainer.
 
 ---
 
-## Integration Example
+## Integration example
 
 Using `mini.trainer` with `mini.config` and `mini.builder`:
 

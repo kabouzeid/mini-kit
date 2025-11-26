@@ -1,3 +1,7 @@
+---
+icon: lucide/hammer
+---
+
 # mini.builder
 
 `mini.builder` turns plain dictionaries into Python objects. It plays nicely with `mini.config` but also works as a standalone helper.
@@ -11,7 +15,7 @@
 - Prefix with `"partial:"` to create factories instead of calling constructors immediately.
 - Create extra `Registry` instances when you want isolated component sets.
 
-## Basic Usage
+## Basic usage
 
 1. **Register components**
 
@@ -52,7 +56,7 @@
     )
     ```
 
-## Feature Highlights
+## Feature highlights
 
 ### Registry shortcuts
 
@@ -115,16 +119,16 @@ optim = build({"type": "ToyOptim"}, registry=optim_registry)
 
 Pass `registry=None` to skip registry lookups entirely.
 
-## API Cheatsheet
+## API cheatsheet
 
 - `REGISTRY`: default global registry.
-- `register(name: str | None = None, registry=REGISTRY) -> Callable`: convenience decorator for adding classes/functions to the registry.
-- `Registry.register(name: str | None = None) -> Callable`: decorator for adding classes/functions (defaults to the object name).
-- `Registry.get(name: str) -> Any`: fetch a registered object; returns `None` when missing.
-- `build(cfg, registry=REGISTRY, recursive=True) -> Any`: instantiate configs, optionally recursing into nested structures.
+- `register(name: str | None = None, registry=REGISTRY) -> Callable`
+- `Registry.register(name: str | None = None) -> Callable`
+- `Registry.get(name: str) -> Any`
+- `build(cfg, registry=REGISTRY, recursive=True) -> Any`
   - Raises `AssertionError` when `cfg` lacks `"type"` and `ModuleNotFoundError` when lookups fail.
 
-## Example Integration with `mini.config`
+## Example with `mini.config`
 
 ```python
 from mini.builder import build
