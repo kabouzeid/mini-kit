@@ -53,7 +53,7 @@ def test_key_average_nan_values():
     ]
     result = key_average(dicts)
     assert result["a"] == 3.0
-    assert result["b"] == 5.0
+    assert math.isnan(result["b"])
 
 
 def test_key_average_all_nan():
@@ -62,6 +62,26 @@ def test_key_average_all_nan():
         {"a": math.nan},
     ]
     result = key_average(dicts)
+    assert math.isnan(result["a"])
+
+
+def test_key_average_nan_values_exclude():
+    dicts = [
+        {"a": 1, "b": math.nan},
+        {"a": 3, "b": 4},
+        {"a": 5, "b": 6},
+    ]
+    result = key_average(dicts, exclude_nan=True)
+    assert result["a"] == 3.0
+    assert result["b"] == 5.0
+
+
+def test_key_average_all_nan_exclude():
+    dicts = [
+        {"a": math.nan},
+        {"a": math.nan},
+    ]
+    result = key_average(dicts, exclude_nan=True)
     assert math.isnan(result["a"])
 
 

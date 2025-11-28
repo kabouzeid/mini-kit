@@ -29,7 +29,7 @@ def set_nested_dict(d: dict[str, dict], keys: tuple[str, ...], value: Any):
     d[keys[-1]] = value
 
 
-def key_average(list_of_dicts: list) -> dict[str, Any]:
+def key_average(list_of_dicts: list, exclude_nan: bool = False) -> dict[str, Any]:
     """
     Returns a dictionary with the average value of each key in the input list of dictionaries.
     """
@@ -42,7 +42,7 @@ def key_average(list_of_dicts: list) -> dict[str, Any]:
         values = []
         for d in list_of_dicts:
             v = get_nested_dict(d, k)
-            if v is not None and not math.isnan(v):
+            if v is not None and (not exclude_nan or not math.isnan(v)):
                 values.append(v)
         avg = sum(values) / len(values) if values else float("nan")
         set_nested_dict(result, k, avg)
