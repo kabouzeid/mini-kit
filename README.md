@@ -58,7 +58,7 @@ model = build(cfg["model"])
 optimizer = build(cfg["optimizer"])
 ```
 
-- `load` executes `configs/model.py`; keep a simple `config = {...}` for small projects, or swap to `def config(...):` and `parents = [...]` when you need templates and composition.
+- `load` executes `configs/model.py`; keep a simple `config = {...}` for small projects, or swap to `variables = {...}; config = lambda v: ...` and `parents = [...]` when you need templates and composition (the callable receives a `Variables` mapping).
 - `apply_overrides` allows for painless command-line overrides: tweak nested keys with a short-hand syntax: `optimizer.lr=...`, append with `+=`, or drop entries with `!=`.
 - `build` looks at the `"type"` key, grabs the right constructor (from the registry or import path), and wires up dependencies for you.
 

@@ -12,7 +12,7 @@ Keep configuration logic in regular Python modules. Start with a single dictiona
 
 - Load any Python config module or callable with `load`.
 - Compose configs via `parents = [...]` chains or by supplying multiple paths at once.
-- Parameterize configs with function arguments; inject runtime values with `params`.
+- Declare adjustable values explicitly via `variables`; callables receive the merged `variables` as a `Variables` mapping.
 - Adjust values on the fly using `apply_overrides` and a compact CLI syntax.
 - Control merge behavior with `Delete()` and `Replace(value)`.
 - Snapshot final dictionaries back to Python with `dump`, or pretty-print them with `format`.
@@ -39,18 +39,23 @@ Keep configuration logic in regular Python modules. Start with a single dictiona
     # configs/finetune.py
     parents = ["base.py"]
 
-    def config(num_classes=10, max_steps=10_000, warmup_steps=1_000):
-        return {
-            "model": {
-                "head": {"out_channels": num_classes},
-            },
-            "scheduler": {
-                "type": "linear_warmup_cosine_decay",
-                "warmup_steps": warmup_steps,
-                "decay_steps": max_steps - warmup_steps,
-            },
-            "trainer": {"max_steps": max_steps},
-        }
+    variables = {
+        "num_classes": 10,
+        "max_steps": 10_000,
+        "warmup_steps": 1_000,
+    }
+
+    config = lambda v: {
+        "model": {
+            "head": {"out_channels": v.num_classes},
+        },
+        "scheduler": {
+            "type": "linear_warmup_cosine_decay",
+            "warmup_steps": v.warmup_steps,
+            "decay_steps": v.max_steps - v.warmup_steps,
+        },
+        "trainer": {"max_steps": v.max_steps},
+    }
     ```
 
 3. **Load everything** and apply runtime tweaks:
@@ -58,7 +63,7 @@ Keep configuration logic in regular Python modules. Start with a single dictiona
     ```python
     from mini.config import apply_overrides, load
 
-    cfg = load("configs/finetune.py", params={"num_classes": 5})
+    cfg = load("configs/finetune.py", variables={"num_classes": 5})
     cfg = apply_overrides(cfg, ["optimizer.lr=1e-3"])
     ```
 
@@ -73,20 +78,24 @@ Keep configuration logic in regular Python modules. Start with a single dictiona
 
 ## Anatomy of a config module
 
-Each config file is just Python. The loader only pays attention to two attributes:
+Each config file is just Python. The loader only pays attention to three attributes:
 
 - `config`: dictionary or callable returning a dictionary.
+- `variables`: a dictionary of variables to inject into callable configs across the inheritance chain.
 - `parents`: string or list of strings pointing to other config files (paths resolved relative to the current file).
 
-Use a **dictionary** (`config = {...}`) when the configuration is static. Use a **callable** when you want parameters; default argument values become part of the config defaults automatically.
+Use a **dictionary** (`config = {...}`) when the configuration is static. Use a **callable** when you want parameters; every callable in the chain receives the merged `variables` as a single `Variables` positional argument (parent values flow into children, and `load(..., variables=...)` overrides them).
 
 ```python
-def config(batch_size: int = 64, *, device: str = "cuda"):
-    return {
-        "data": {"batch_size": batch_size},
-        "trainer": {"device": device},
-    }
+variables = {"batch_size": 64, "device": "cuda"}
+
+config = lambda v: {
+    "data": {"batch_size": v.batch_size},
+    "trainer": {"device": v.device},
+}
 ```
+
+Because `variables` is wrapped in a `Variables` mapping, nested dictionaries are accessible via attributes (`v.trainer.max_steps`) or standard indexing.
 
 ### Multiple parents or paths
 
@@ -193,7 +202,7 @@ dump(cfg, Path("runs/2024-01-10/config_snapshot.py"))
 
 ## API reference
 
-- `load(path | Sequence[path], params: dict | None = None) -> dict`
+- `load(path | Sequence[path], variables: dict | None = None) -> dict`
 - `apply_overrides(cfg: dict, overrides: Sequence[str]) -> dict`
 - `merge(base: dict, override: dict) -> dict`
 - `Delete()`

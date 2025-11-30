@@ -1,8 +1,8 @@
 import ast
-import inspect
 import os
 import re
 import runpy
+from collections.abc import Mapping
 from functools import reduce
 from pathlib import Path
 from typing import Callable, Sequence
@@ -17,23 +17,23 @@ class Replace:
         self.value = value
 
 
-def load(path: os.PathLike | Sequence[os.PathLike], params: dict | None = None):
-    """Load config modules from `path`, apply params, and merge the results."""
+def load(path: os.PathLike | Sequence[os.PathLike], variables: dict | None = None):
+    """Load config modules from `path`, apply variables, and merge the results."""
 
     paths = [path] if isinstance(path, (str, os.PathLike)) else path
     specs = [spec for p in paths for spec in _collect_config_specs(Path(p))]
 
     # last assignment wins. we could also deep merge, but it feels less natural here
-    params = {k: v for _, d in specs for k, v in d.items()} | (params or {})
+    variables = {k: v for _, d in specs for k, v in d.items()} | (variables or {})
 
     return reduce(
         merge,
-        (_build_config(config, params) for config in [cfg for cfg, _ in specs]),
+        (_build_config(config, variables) for config in [cfg for cfg, _ in specs]),
     )
 
 
-def _build_config(config: dict | Callable, params: dict):
-    return config(**params) if callable(config) else config
+def _build_config(config: dict | Callable, variables: dict):
+    return config(Variables(variables)) if callable(config) else config
 
 
 def _collect_config_specs(path: os.PathLike) -> list[tuple[dict, dict]]:
@@ -44,7 +44,7 @@ def _collect_config_specs(path: os.PathLike) -> list[tuple[dict, dict]]:
     config_module_globs = runpy.run_path(str(path), run_name="__config__")
 
     config = config_module_globs.get("config", {})
-    params = _defaults_args(config) if callable(config) else {}
+    variables = config_module_globs.get("variables", {})
 
     parents = config_module_globs.get("parents", None)
     if isinstance(parents, str):
@@ -54,15 +54,7 @@ def _collect_config_specs(path: os.PathLike) -> list[tuple[dict, dict]]:
         parent_cfg_specs
         for parent in parents or []
         for parent_cfg_specs in _collect_config_specs(path.parent / Path(parent))
-    ] + [(config, params)]
-
-
-def _defaults_args(f: Callable) -> dict:
-    return {
-        name: param.default
-        for name, param in inspect.signature(f).parameters.items()
-        if param.default is not inspect.Parameter.empty
-    }
+    ] + [(config, variables)]
 
 
 def dump(config: dict, path: os.PathLike):
@@ -211,3 +203,41 @@ def infer_type(val: str):
         return ast.literal_eval(val)
     except (ValueError, SyntaxError):
         return val
+
+
+class Variables(Mapping):
+    """
+    Simple EasyDict-like read-only wrapper around a dictionary that allows attribute-style access to keys.
+    """
+
+    def __init__(self, d: dict):
+        self._dict = type(d)((k, self._wrap(v)) for k, v in d.items())
+
+    def _wrap(self, x):
+        if isinstance(x, dict):
+            return Variables(x)
+        elif isinstance(x, list):
+            return type(x)(self._wrap(it) for it in x)
+        else:
+            return x
+
+    def __getattr__(self, key):
+        return self._dict[key]
+
+    def __setattr__(self, name, value):
+        if name == "_dict":
+            super().__setattr__(name, value)
+        else:
+            raise AttributeError(f"{self.__class__.__name__} is read-only")
+
+    def __getitem__(self, key):
+        return self._dict[key]
+
+    def __iter__(self):
+        return iter(self._dict)
+
+    def __len__(self):
+        return len(self._dict)
+
+    def __repr__(self):
+        return repr(self._dict)

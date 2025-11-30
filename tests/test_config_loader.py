@@ -115,8 +115,9 @@ def test_param_injection(tmp_path):
     _write(
         cfg_path,
         """
-        def config(steps=1000, **params):
-            return {'steps': steps}
+        variables =  {"steps": 1000}
+
+        config = lambda v: {'steps': v.steps}
         """,
     )
 
@@ -125,7 +126,7 @@ def test_param_injection(tmp_path):
     assert cfg_default == {"steps": 1000}
 
     # With injection we override usages consistently
-    cfg_override = load(cfg_path, params={"steps": 5000})
+    cfg_override = load(cfg_path, variables={"steps": 5000})
     assert cfg_override == {"steps": 5000}
 
 
@@ -134,8 +135,9 @@ def test_child_param_injection(tmp_path):
     _write(
         cfg_path,
         """
-        def config(steps=1000, **params):
-            return {'steps': steps}
+        variables =  {"steps": 1000}
+
+        config = lambda v: {'steps': v.steps}
         """,
     )
     child_cfg_path = tmp_path / "child_cfg.py"
@@ -143,8 +145,9 @@ def test_child_param_injection(tmp_path):
         child_cfg_path,
         f"""
         parents = ['{cfg_path}']
-        def config(steps=5000, **params):
-            return {{}}
+        variables =  {{"steps": 5000}}
+
+        config = lambda v: {{"steps": v.steps}}
         """,
     )
 
@@ -162,8 +165,9 @@ def test_child_param_inheritance(tmp_path):
     _write(
         cfg_path,
         """
-        def config(steps=1000, **params):
-            return {'steps': steps}
+        variables =  {"steps": 1000}
+
+        config = lambda v: {'steps': v.steps}
         """,
     )
     child_cfg_path = tmp_path / "child_cfg.py"
@@ -171,8 +175,7 @@ def test_child_param_inheritance(tmp_path):
         child_cfg_path,
         f"""
         parents = ['{cfg_path}']
-        def config(steps, **params):
-            return {{"warmup_steps": int(steps * 0.1)}}
+        config = lambda v: {{"warmup_steps": int(v.steps * 0.1)}}
         """,
     )
 
@@ -184,6 +187,24 @@ def test_child_param_inheritance(tmp_path):
     assert cfg_override == {"steps": 1000, "warmup_steps": 100}
 
 
+def test_variables_nested(tmp_path):
+    cfg_path = tmp_path / "cfg.py"
+    _write(
+        cfg_path,
+        """
+        variables =  {"training": {"steps": 200, "device": "cuda"}}
+
+        config = lambda v: {
+            "steps": v.training.steps,
+            "device": v.training.device,
+        }
+        """,
+    )
+
+    cfg = load(cfg_path)
+    assert cfg == {"steps": 200, "device": "cuda"}
+
+
 def test_complex_child_param_inheritance(tmp_path):
     parent_cfg_paths = [tmp_path / f"{p}.py" for p in ["1", "2", "3"]]
     for p_path in parent_cfg_paths:
@@ -191,19 +212,28 @@ def test_complex_child_param_inheritance(tmp_path):
             tmp_path / f"{p_path.stem}_{g}.py" for g in ["X", "Y", "Z"]
         ]
         for gp_path in grandparent_cfg_paths:
+            vairables = (
+                {"steps": 100, "warmup_steps": 100} if gp_path.stem == "3_X" else {}
+            )
             _write(
                 gp_path,
                 f"""
-                def config(steps{"=100" if gp_path.stem == "3_X" else ""}, warmup_steps{"=100" if gp_path.stem == "3_X" else ""}, **params):
-                    return {{"steps_{gp_path.stem}": steps}}
+                variables = {vairables}
+
+                config = lambda v: {{"steps_{gp_path.stem}": v.steps}}
                 """,
             )
         _write(
             p_path,
             f"""
             parents = {list(map(str, grandparent_cfg_paths))}
-            def config(warmup_steps, steps={int(p_path.stem) * 1000}, extra=False, **params):
-                return {{"steps_{p_path.stem}": steps, "warmup_steps_{p_path.stem}": warmup_steps, "extra_{p_path.stem}": extra}}
+            variables =  {{"steps": {int(p_path.stem) * 1000}, "warmup_steps": 100, "extra": False}}
+
+            config = lambda v: {{
+                "steps_{p_path.stem}": v.steps,
+                "warmup_steps_{p_path.stem}": v.warmup_steps,
+                "extra_{p_path.stem}": v.extra,
+            }}
             """,
         )
 
@@ -212,8 +242,11 @@ def test_complex_child_param_inheritance(tmp_path):
         base_cfg_path,
         f"""
         parents = {list(map(str, parent_cfg_paths))}
-        def config(steps, warmup_steps, **params):
-            return {{"steps": steps, "warmup_steps": warmup_steps, "extra": params['extra']}}
+        config = lambda v: {{
+            "steps": v.steps,
+            "warmup_steps": v.warmup_steps,
+            "extra": v.extra,
+        }}
         """,
     )
 
