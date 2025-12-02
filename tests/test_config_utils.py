@@ -2,6 +2,7 @@ import pytest
 
 from mini.config.config import (
     apply_overrides,
+    dump,
     format,
     infer_type,
     parse_key_path,
@@ -195,3 +196,29 @@ def test_format_simple_dict():
 }
 """
     assert formatted == expected
+
+
+def test_dump_simple_dict(tmp_path):
+    cfg = {
+        "model": {
+            "encoder": {"channels": 64},
+            "head": {"in_channels": 64, "out_channels": 10},
+        },
+        "optimizer": {"type": "adam", "lr": 3e-4},
+        "trainer": {"max_steps": 50_000},
+    }
+    dump(cfg, tmp_path / "config_snapshot.py")
+    with open(tmp_path / "config_snapshot.py", "r") as f:
+        content = f.read()
+    expected = """# fmt: off
+# Auto-generated config snapshot
+config = {
+    "model": {
+        "encoder": {"channels": 64},
+        "head": {"in_channels": 64, "out_channels": 10},
+    },
+    "optimizer": {"type": "adam", "lr": 0.0003},
+    "trainer": {"max_steps": 50000},
+}
+"""
+    assert content == expected

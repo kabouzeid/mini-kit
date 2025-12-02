@@ -11,7 +11,7 @@ dependencies = []
 
 [project.optional-dependencies]
 config = [
-    "black>=22.1.0",
+    "ruff>=0.14.3",
 ]
 trainer = [
     "pillow>=11.3.0",
@@ -19,7 +19,7 @@ trainer = [
     "wandb>=0.20.1",
 ]
 all = [
-    "black",
+    "ruff",
     "pillow",
     "torch",
     "wandb",

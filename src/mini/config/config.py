@@ -3,6 +3,7 @@ import inspect
 import os
 import re
 import runpy
+import subprocess
 from functools import reduce
 from pathlib import Path
 from typing import Callable, Sequence
@@ -66,25 +67,35 @@ def _defaults_args(f: Callable) -> dict:
 
 
 def dump(config: dict, path: os.PathLike):
-    """Persist a config dictionary to a Python file with Black formatting."""
+    """Persist a config dictionary to a ruff-formatted Python file."""
 
-    import black
-
-    # we could also use pprint.pformat, but black looks nicer
-    config_str = black.format_str("config = " + repr(config), mode=black.Mode())
+    config_str = _ruff_format(
+        "# Auto-generated config snapshot\nconfig = " + repr(config)
+    )
 
     with open(path, "w") as f:
         f.write("# fmt: off\n")  # prevent auto-formatting
-        f.write("# Auto-generated config snapshot\n")
         f.write(config_str)
 
 
 def format(config: dict) -> str:
-    """Return a Black-formatted string for the provided config dictionary."""
+    """Return a ruff-formatted string for the provided config dictionary."""
+    return _ruff_format(repr(config))
 
-    import black
 
-    return black.format_str(repr(config), mode=black.Mode())
+def _ruff_format(source: str) -> str:
+    from ruff.__main__ import find_ruff_bin
+
+    result = subprocess.run(
+        [find_ruff_bin(), "format", "--isolated", "--stdin-filename=config.py", "-"],
+        input=source,
+        text=True,
+        capture_output=True,
+        check=True,
+        cwd=Path.cwd(),
+    )
+    result.check_returncode()
+    return result.stdout
 
 
 def merge(base: dict, override: dict):
