@@ -1,6 +1,8 @@
 import pytest
+
 from mini.config.config import (
     apply_overrides,
+    format,
     infer_type,
     parse_key_path,
     set_nested,
@@ -168,3 +170,28 @@ def test_combined_deletes_and_adds():
         "model": {"layers": ["conv", "relu", "maxpool"]},
         "tags": ["debug"],
     }
+
+
+### --- format tests --- ###
+
+
+def test_format_simple_dict():
+    cfg = {
+        "model": {
+            "encoder": {"channels": 64},
+            "head": {"in_channels": 64, "out_channels": 10},
+        },
+        "optimizer": {"type": "adam", "lr": 3e-4},
+        "trainer": {"max_steps": 50_000},
+    }
+    formatted = format(cfg)
+    expected = """{
+    "model": {
+        "encoder": {"channels": 64},
+        "head": {"in_channels": 64, "out_channels": 10},
+    },
+    "optimizer": {"type": "adam", "lr": 0.0003},
+    "trainer": {"max_steps": 50000},
+}
+"""
+    assert formatted == expected
