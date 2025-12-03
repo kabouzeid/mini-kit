@@ -267,6 +267,7 @@ class BaseTrainer:
                                 "Gradient is non-finite. Exceeded maximum retries for non-finite gradients."
                             )
                 self.grad_scaler.unscale_(self.optimizer)
+                self._before_optimizer_step()
                 if self.grad_clip is not None:
                     self.step_info["grad_norm"] = torch.nn.utils.clip_grad_norm_(
                         self.model.parameters(), self.grad_clip
@@ -349,6 +350,11 @@ class BaseTrainer:
         self.logger.debug("_after_step()")
         for h in self.hooks:
             h.on_after_step(self)
+
+    def _before_optimizer_step(self):
+        self.logger.debug("_before_optimizer_step()")
+        for h in self.hooks:
+            h.on_before_optimizer_step(self)
 
 
 def maybe_closing(obj):

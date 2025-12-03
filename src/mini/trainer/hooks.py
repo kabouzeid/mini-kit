@@ -37,6 +37,9 @@ class BaseHook:
     def on_before_step(self, trainer: BaseTrainer):
         pass
 
+    def on_before_optimizer_step(self, trainer: BaseTrainer):
+        pass
+
     def on_after_step(self, trainer: BaseTrainer):
         pass
 
