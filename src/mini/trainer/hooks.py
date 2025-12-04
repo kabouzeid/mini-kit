@@ -144,35 +144,31 @@ class _StatsHook(BaseHook):
 
 
 class ETATracker:
-    def __init__(self, total_steps: int, warmup_steps: int):
+    def __init__(self, warmup_steps: int):
         """
         Track the estimated time of arrival (ETA) for the training process. Call step() after each training step.
         Args:
-            total_steps (int): Total number of times step() will be called.
             warmup_steps (int): Number of warmup steps before starting to track ETA. At least the first step must be warmup.
         """
-        assert total_steps > 0, "Total steps must be greater than 0"
-        self.total_steps = total_steps
         assert warmup_steps > 0, "Warmup steps must be greater than 0"
         self.warmup_steps = warmup_steps
-        self.steps_done = 0
+        self.steps = 0
         self.timing_start = None
         self.timed_steps = 0
 
     def step(self):
-        self.steps_done += 1
-        if self.steps_done == self.warmup_steps:
+        self.steps += 1
+        if self.steps == self.warmup_steps:
             self.timing_start = time.perf_counter()
-        if self.steps_done > self.warmup_steps:
+        if self.steps > self.warmup_steps:
             self.timed_steps += 1
 
-    def get_eta(self):
+    def get_eta(self, steps_remaining: int):
         if self.timed_steps == 0:
             return None
 
         elapsed = time.perf_counter() - self.timing_start
         avg_step_time = elapsed / self.timed_steps
-        steps_remaining = self.total_steps - self.steps_done
         eta_seconds = avg_step_time * steps_remaining
         return timedelta(seconds=int(eta_seconds))
 
@@ -192,10 +188,7 @@ class ProgressHook(_StatsHook):
     def on_before_train(self, trainer: BaseTrainer):
         super().on_before_train(trainer)
         trainer.logger.info("=> Starting training ...")
-        self.eta_tracker = ETATracker(
-            total_steps=trainer.max_steps - trainer.step,
-            warmup_steps=self.eta_warmup,
-        )
+        self.eta_tracker = ETATracker(warmup_steps=self.eta_warmup)
 
     def on_after_train(self, trainer: BaseTrainer):
         super().on_after_train(trainer)
@@ -222,7 +215,7 @@ class ProgressHook(_StatsHook):
         max_memory: float | None,
         records: Records,
     ):
-        eta = self.eta_tracker.get_eta()
+        eta = self.eta_tracker.get_eta(trainer.max_steps - trainer.step)
         trainer.logger.info(
             f"Step {trainer.step:>{len(str(trainer.max_steps))}}/{trainer.max_steps}:"
             + f" step {step_time:.4f}s data {data_time:.4f}s"
