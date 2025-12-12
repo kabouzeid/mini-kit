@@ -180,10 +180,12 @@ class ProgressHook(_StatsHook):
         with_records: bool = False,
         sync: bool = False,
         eta_warmup: int = 10,
+        show_units: bool = True,
     ):
         super().__init__(interval=interval, sync=sync)
         self.with_records = with_records
         self.eta_warmup = eta_warmup
+        self.show_units = show_units
 
     def on_before_train(self, trainer: BaseTrainer):
         super().on_before_train(trainer)
@@ -218,9 +220,13 @@ class ProgressHook(_StatsHook):
         eta = self.eta_tracker.get_eta(trainer.max_steps - trainer.step)
         trainer.logger.info(
             f"Step {trainer.step:>{len(str(trainer.max_steps))}}/{trainer.max_steps}:"
-            + f" step {step_time:.4f}s data {data_time:.4f}s"
+            + f" step {step_time:.4f}{'s' if self.show_units else ''} data {data_time:.4f}{'s' if self.show_units else ''}"
             + (f" eta {eta}" if eta is not None else "")
-            + (f" mem {max_memory:#.3g}GiB" if max_memory is not None else "")
+            + (
+                f" mem {max_memory:#.3g}{'GiB' if self.show_units else ''}"
+                if max_memory is not None
+                else ""
+            )
             + f" loss {loss:.4f}"
             + (f" grad_norm {grad_norm:.4f}" if grad_norm is not None else "")
             + (" " + " ".join(f"lr_{i} {lr:.2e}" for i, lr in self.lrs))
