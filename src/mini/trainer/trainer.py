@@ -30,6 +30,25 @@ Records: TypeAlias = dict[str, Union[Number, "Records"]]
 
 
 class BaseTrainer:
+    """
+    Minimal training loop that orchestrates builds, accumulation, retries, and hooks.
+
+    Subclasses provide component factories and a forward pass; the base class handles
+    sequencing, mixed precision, accumulation, state management, and hook dispatch.
+
+    Args:
+        max_steps: Number of training steps to run.
+        grad_clip: Max gradient norm; if set, gradients are clipped before stepping.
+        max_non_finite_grad_retries: Number of retries when encountering non-finite gradients (scaler disabled).
+        mixed_precision: ``\"fp16\"`` or ``\"bf16\"`` to enable autocast; ``None`` disables it.
+        gradient_accumulation_steps: Number of microsteps to accumulate before stepping.
+        workspace: Optional working directory used by hooks (e.g., checkpoints, logs).
+        device: Device for the model and tensors.
+        no_sync_accumulate: Whether to call ``no_sync`` on distributed modules during accumulation.
+        state_dict_options: Torch distributed checkpoint options.
+        logger: Logger instance; a default logger is created when omitted.
+    """
+
     def __init__(
         self,
         max_steps: int,
@@ -75,21 +94,27 @@ class BaseTrainer:
         self.hooks = self.build_hooks()
 
     def build_data_loader(self) -> Iterable:
+        """Return the training data iterator."""
         raise NotImplementedError
 
     def build_model(self) -> nn.Module:
+        """Construct and return the model."""
         raise NotImplementedError
 
     def build_optimizer(self) -> torch.optim.Optimizer:
+        """Create the optimizer for the model."""
         raise NotImplementedError
 
     def build_lr_scheduler(self) -> torch.optim.lr_scheduler.LRScheduler | None:
+        """Optionally create a learning-rate scheduler."""
         return None
 
     def build_hooks(self) -> list["BaseHook"]:
+        """Return hooks to run during training."""
         return []
 
     def build_grad_scaler(self) -> torch.amp.GradScaler:
+        """Create the gradient scaler used for mixed precision."""
         return torch.amp.GradScaler(
             self.device.type, enabled=self.mixed_precision == torch.float16
         )
@@ -142,6 +167,7 @@ class BaseTrainer:
             h.on_load_state_dict(self, state_dict)
 
     def train(self):
+        """Run the training loop until ``max_steps`` are completed."""
         self._build()
         self._before_train()
 
@@ -281,16 +307,14 @@ class BaseTrainer:
 
     def forward(self, input: Any) -> tuple[torch.Tensor | None, Records]:
         """
-        Perform the forward pass of the model.
+        Perform a forward pass and return loss plus records for logging.
 
         Args:
-            input (Any): Input data from the dataloader.
+            input: Batch yielded by the data loader.
 
         Returns:
-            1. The computed loss tensor. If None, the backward and optimizer steps will be skipped.
-            Note: When using DDP or FSDP, ensure that None is not returned after a forward pass
-            to avoid potential undefined behavior.
-            2. A nested dictionary with str keys and Number values to be averaged and logged.
+            The loss (``None`` skips backward/step; if using DDP/FSDP, avoid invoking the wrapped module's ``forward`` in that case).
+            A nested dict of numeric metrics that will be averaged and emitted to hooks.
         """
         raise NotImplementedError
 
@@ -313,9 +337,11 @@ class BaseTrainer:
 
     def log(self, records: dict[str, Any], dry_run: bool = False):
         """
-        Log the records to e.g., an experiment tracker or the console.
+        Dispatch numeric records to hooks (e.g., trackers or stdout).
+
         Args:
-            records (dict): Nested dict of numeric records with string keys to log.
+            records: Nested dict of numeric metrics to log.
+            dry_run: If True, hooks should avoid side effects and only report intent.
         """
         self.logger.debug("log()")
         for h in self.hooks:
@@ -323,9 +349,11 @@ class BaseTrainer:
 
     def log_images(self, records: dict[str, Any], dry_run: bool = False):
         """
-        Log images to e.g., an experiment tracker.
+        Dispatch image records to hooks.
+
         Args:
-            records (dict): Nested dict of PIL images with string keys to log.
+            records: Nested dict of images to log.
+            dry_run: If True, hooks should avoid side effects and only report intent.
         """
         self.logger.debug("log_images()")
         for h in self.hooks:
@@ -363,6 +391,7 @@ def maybe_closing(obj):
 
 
 def map_nested_tensor(f: Callable[[torch.Tensor], Any], obj: Any):
+    """Apply ``f`` to every tensor contained in a nested structure."""
     if isinstance(obj, torch.Tensor):
         return f(obj)
     elif isinstance(obj, (list, tuple, set)):
@@ -374,4 +403,4 @@ def map_nested_tensor(f: Callable[[torch.Tensor], Any], obj: Any):
 
 
 class LossNoneWarning(UserWarning):
-    pass
+    """Warning raised when ``forward`` returns ``None`` in distributed contexts."""

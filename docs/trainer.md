@@ -369,40 +369,15 @@ Used internally by hooks to aggregate metrics.
 
 ---
 
-## API reference
-
-### `BaseTrainer`
-
-Constructor parameters:
-
-- `max_steps` (int): Total number of training steps.
-- `grad_clip` (float | None): Maximum gradient norm for clipping (default: `None`).
-- `max_non_finite_grad_retries` (int | None): Number of retries for non-finite gradients (default: `None`).
-- `mixed_precision` (str | None): `"fp16"`, `"bf16"`, or `None` (default: `None`).
-- `gradient_accumulation_steps` (int | None): Number of steps to accumulate gradients (default: 1).
-- `workspace` (Path | str | None): Directory for saving checkpoints and logs (default: `None`).
-- `device` (torch.device | str | int): Device for training (default: `"cuda"`).
-- `no_sync_accumulate` (bool): Skip gradient synchronization during accumulation (default: `True`).
-- `state_dict_options` (StateDictOptions | None): Options for distributed state dict handling (default: `None`).
-- `logger` (Logger | None): Python logger instance (default: creates a new logger).
-
-Key attributes:
-
-- `step` (int): Current training step (0 before training starts).
-- `model` (nn.Module): The model being trained.
-- `optimizer` (torch.optim.Optimizer): The optimizer.
-- `lr_scheduler` (torch.optim.lr_scheduler.LRScheduler | None): The learning rate scheduler.
-- `data_loader` (Iterable): The data loader.
-- `hooks` (list[BaseHook]): List of active hooks.
-- `step_info` (dict): Metrics from the current step (populated during `_run_step()`).
-
-Methods:
-
-- `train()`: Start training.
-- `state_dict() -> dict`: Get the full training state (e.g. called by a checkpoint hook).
-- `load_state_dict(state_dict)`: Restore training state (e.g. called by a checkpoint hook).
-- `log(records, dry_run=False)`: Log metrics (delegated to hooks: `on_log`).
-- `log_images(records, dry_run=False)`: Log images (delegated to hooks: `on_log_images`).
+::: mini.trainer
+    options:
+        show_root_heading: true
+        heading: "API reference"
+        toc_label: "API reference"
+        summary:
+            attributes: true
+            classes: true
+            functions: true
 
 ---
 

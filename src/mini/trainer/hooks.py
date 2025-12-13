@@ -31,6 +31,8 @@ from .utils import flatten_nested_dict, key_average
 
 
 class BaseHook:
+    """Lifecycle hooks for `BaseTrainer`."""
+
     def on_before_train(self, trainer: BaseTrainer):
         pass
 
@@ -60,6 +62,13 @@ class BaseHook:
 
 
 class _StatsHook(BaseHook):
+    """Collect step statistics and hand them to subclasses for reporting.
+
+    Args:
+        interval: Emit stats every N steps.
+        sync: If True, aggregate stats across distributed ranks.
+    """
+
     def __init__(
         self,
         interval: int,
@@ -145,10 +154,10 @@ class _StatsHook(BaseHook):
 
 class ETATracker:
     def __init__(self, warmup_steps: int):
-        """
-        Track the estimated time of arrival (ETA) for the training process. Call step() after each training step.
+        """Track ETA across training steps after a warmup period.
+
         Args:
-            warmup_steps (int): Number of warmup steps before starting to track ETA. At least the first step must be warmup.
+            warmup_steps: Number of steps to skip before timing begins.
         """
         assert warmup_steps > 0, "Warmup steps must be greater than 0"
         self.warmup_steps = warmup_steps
@@ -174,6 +183,16 @@ class ETATracker:
 
 
 class ProgressHook(_StatsHook):
+    """Log progress to stdout with optional metrics, ETA, and memory.
+
+    Args:
+        interval: Log every N steps.
+        with_records: Include per-step records in the log line.
+        sync: If True, aggregate across distributed ranks.
+        eta_warmup: Steps to warm up ETA calculation.
+        show_units: Whether to print units (s, GiB) alongside values.
+    """
+
     def __init__(
         self,
         interval: int = 1,
@@ -245,8 +264,11 @@ class ProgressHook(_StatsHook):
 
 
 class LoggingHook(_StatsHook):
-    """
-    Log aggregated training statistics and records to a `log(records: dict[str, Any])` method defined in the trainer.
+    """Aggregate stats and forward them to ``trainer.log``.
+
+    Args:
+        interval: Log every N steps.
+        sync: If True, aggregate across distributed ranks.
     """
 
     def __init__(
@@ -286,8 +308,17 @@ class LoggingHook(_StatsHook):
 
 
 class CheckpointingHook(BaseHook):
-    """
-    Save checkpoints at regular intervals. The latest checkpoint is always saved as a symlink.
+    """Save and optionally restore checkpoints at regular intervals.
+
+    Args:
+        interval: Save every ``interval`` steps.
+        keep_previous: Keep the last N checkpoints in addition to the latest.
+        keep_interval: Keep checkpoints every ``keep_interval`` steps.
+        path: Directory (relative to workspace unless absolute) for checkpoints.
+        load: Path to load at startup or ``\"latest\"`` to auto-resume.
+        exit_signals: Signals that trigger a checkpoint then exit.
+        exit_code: Exit code after handling an exit signal.
+        exit_wait: Optional sleep before exit (useful for schedulers).
     """
 
     def __init__(
@@ -508,6 +539,8 @@ class CheckpointingHook(BaseHook):
 
 
 class CudaMaxMemoryHook(BaseHook):
+    """Record peak CUDA memory per step into ``trainer.step_info``."""
+
     def on_before_step(self, trainer: BaseTrainer):
         torch.cuda.reset_peak_memory_stats(trainer.device)
 
@@ -518,6 +551,12 @@ class CudaMaxMemoryHook(BaseHook):
 
 
 class EmaHook(BaseHook):
+    """Maintain an exponential moving average of model weights.
+
+    Args:
+        decay: EMA decay rate.
+    """
+
     def __init__(self, decay: float):
         self.decay = decay
 
@@ -539,6 +578,16 @@ class EmaHook(BaseHook):
 
 
 class WandbHook(BaseHook):
+    """Log metrics and images to Weights & Biases (rank 0 only).
+
+    Args:
+        project: W&B project name.
+        config: Optional config dict or JSON file path to log.
+        tags: Optional tag list.
+        image_format: File format for images or a callable to derive it per key.
+        **wandb_kwargs: Extra arguments forwarded to ``wandb.init``.
+    """
+
     def __init__(
         self,
         project: str,
@@ -640,6 +689,12 @@ class WandbHook(BaseHook):
 
 
 class ImageFileLoggerHook(BaseHook):
+    """Persist logged images to ``workspace/visualizations`` on rank 0.
+
+    Args:
+        image_format: File extension or callable taking the leaf key.
+    """
+
     def __init__(
         self,
         image_format: str | Callable[[str], str] = "png",

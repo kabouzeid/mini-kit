@@ -11,6 +11,7 @@ from .hooks import (
 from .trainer import BaseTrainer, LossNoneWarning, map_nested_tensor
 
 __all__ = [
+    "BaseTrainer",
     "BaseHook",
     "CheckpointingHook",
     "CudaMaxMemoryHook",
@@ -19,7 +20,6 @@ __all__ = [
     "EmaHook",
     "WandbHook",
     "ImageFileLoggerHook",
-    "BaseTrainer",
     "LossNoneWarning",
     "map_nested_tensor",
 ]
