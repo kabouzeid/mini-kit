@@ -4,10 +4,14 @@ from typing import Any, Callable, Dict, Type, Union
 
 
 class Registry:
+    """Lightweight registry for named constructors."""
+
     def __init__(self):
         self._store = {}
 
     def register(self, name: str = None) -> Callable:
+        """Decorator that registers a class or function under ``name``."""
+
         def wrapper(cls):
             key = name or cls.__name__
             self._store[key] = cls
@@ -16,6 +20,7 @@ class Registry:
         return wrapper
 
     def get(self, name: str) -> Type:
+        """Return a registered object by name, or ``None`` if missing."""
         return self._store.get(name)
 
 
@@ -23,6 +28,7 @@ REGISTRY = Registry()
 
 
 def register(name: str = None, *, registry=REGISTRY) -> Callable:
+    """Decorator that registers a class or function in the given registry (default: global)."""
     return registry.register(name)
 
 
@@ -31,47 +37,14 @@ def build(
     registry: Registry | None = REGISTRY,
     recursive: bool = True,
 ) -> Any:
-    """Build an object from a configuration dictionary.
+    """
+    Build an object from a configuration mapping.
 
-    ```python
-    @register()
-    class Layer:
-        def __init__(self, units: int):
-            self.units = units
-
-    @register()
-    class Backbone:
-        def __init__(self, layers: list):
-            self.layers = layers
-
-    @register()
-    class Model:
-        def __init__(self, backbone: Backbone, name: str):
-            self.backbone = backbone
-            self.name = name
-
-    @register()
-    def l1_loss(x, y, weight):
-        return (x - y).abs() * weight
-
-    cfg = {
-        'type': 'Model',
-        'name': 'ResNet',
-        'backbone': {
-            'type': 'Backbone',
-            'layers': [
-                {'type': 'Layer', 'units': 64},
-                {'type': 'Layer', 'units': 128},
-            ]
-        },
-        'loss': {
-            'type': 'l1_loss',
-            'weight': 0.5,
-        }
-    }
-
-    model = build(cfg)
-    ```
+    Looks up ``cfg["type"]`` in the provided registry (or treats it as a dotted
+    import path), forwards keyword arguments, and recursively instantiates nested
+    dicts/lists when ``recursive`` is True. Use the special "*" key for positional
+    arguments and prefix ``"partial:"`` on the ``type`` value to return a factory
+    instead of calling the constructor immediately.
     """
     if not recursive:
         return _instantiate(cfg, registry)

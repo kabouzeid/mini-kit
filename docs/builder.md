@@ -119,15 +119,6 @@ optim = build({"type": "ToyOptim"}, registry=optim_registry)
 
 Pass `registry=None` to skip registry lookups entirely.
 
-## API cheatsheet
-
-- `REGISTRY`: default global registry.
-- `register(name: str | None = None, registry=REGISTRY) -> Callable`
-- `Registry.register(name: str | None = None) -> Callable`
-- `Registry.get(name: str) -> Any`
-- `build(cfg, registry=REGISTRY, recursive=True) -> Any`
-  - Raises `AssertionError` when `cfg` lacks `"type"` and `ModuleNotFoundError` when lookups fail.
-
 ## Example with `mini.config`
 
 ```python
@@ -138,3 +129,13 @@ cfg = load("configs/model.py")
 model = build(cfg["model"])
 optimizer = build(cfg["optimizer"], params=model.parameters())
 ```
+
+::: mini.builder
+    options:
+        show_root_heading: true
+        heading: "API reference"
+        toc_label: "API reference"
+        summary:
+            attributes: true
+            classes: true
+            functions: true
