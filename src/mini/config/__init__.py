@@ -9,11 +9,11 @@ from .config import (
 )
 
 __all__ = [
+    "load",
+    "apply_overrides",
+    "merge",
     "Delete",
     "Replace",
-    "apply_overrides",
     "dump",
     "format",
-    "load",
-    "merge",
 ]

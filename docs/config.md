@@ -191,12 +191,13 @@ dump(cfg, Path("runs/2024-01-10/config_snapshot.py"))
 - Pair with object builders only if you want to: the output is a plain dict, so you can plug it into your own factories or formats.
 - Prefer parameters over repeated overrides when you always tweak the same value.
 
-## API reference
 
-- `load(path | Sequence[path], params: dict | None = None) -> dict`
-- `apply_overrides(cfg: dict, overrides: Sequence[str]) -> dict`
-- `merge(base: dict, override: dict) -> dict`
-- `Delete()`
-- `Replace(value)`
-- `dump(cfg: dict, path: os.PathLike) -> None`
-- `format(cfg: dict) -> str`
+::: mini.config
+    options:
+        show_root_heading: true
+        heading: "API reference"
+        toc_label: "API reference"
+        summary:
+            attributes: true
+            classes: true
+            functions: true

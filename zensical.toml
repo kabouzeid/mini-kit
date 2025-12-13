@@ -316,3 +316,17 @@ link = "https://pypi.org/project/mini-kit"
 [[project.extra.social]]
 icon = "fontawesome/brands/twitter"
 link = "https://twitter.com/kacodes"
+
+
+[project.plugins.mkdocstrings.handlers.python]
+inventories = ["https://docs.python.org/3/objects.inv"]
+paths = ["src"]
+
+[project.plugins.mkdocstrings.handlers.python.options]
+docstring_style = "google"
+inherited_members = true
+show_source = false
+separate_signature= true
+show_signature_annotations= true
+members_order= "__all__"
+docstring_section_style = "spacy"

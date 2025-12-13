@@ -10,16 +10,25 @@ from typing import Callable, Sequence
 
 
 class Delete:
+    """Sentinel that removes a key from a merged config."""
     pass
 
 
 class Replace:
+    """Sentinel that forces a value to replace a mapping during merge."""
+
     def __init__(self, value, /):
         self.value = value
 
 
 def load(path: os.PathLike | Sequence[os.PathLike], params: dict | None = None):
-    """Load config modules from `path`, apply params, and merge the results."""
+    """
+    Load config modules from one or more paths, apply params, and merge the results.
+
+    Parent configs (via `parents`) are resolved first, then later paths override
+    earlier ones. Callable configs receive params (defaults come from signatures);
+    plain dict configs are merged directly.
+    """
 
     paths = [path] if isinstance(path, (str, os.PathLike)) else path
     specs = [spec for p in paths for spec in _collect_config_specs(Path(p))]
@@ -67,7 +76,9 @@ def _defaults_args(f: Callable) -> dict:
 
 
 def dump(config: dict, path: os.PathLike):
-    """Persist a config dictionary to a ruff-formatted Python file."""
+    """
+    Persist a config dictionary to a ruff-formatted Python file.
+    """
 
     config_str = _ruff_format(
         "# Auto-generated config snapshot\nconfig = " + repr(config)
@@ -79,7 +90,7 @@ def dump(config: dict, path: os.PathLike):
 
 
 def format(config: dict) -> str:
-    """Return a ruff-formatted string for the provided config dictionary."""
+    """Return a ruff-formatted string representation of the config dictionary."""
     return _ruff_format(repr(config))
 
 
@@ -99,6 +110,13 @@ def _ruff_format(source: str) -> str:
 
 
 def merge(base: dict, override: dict):
+    """
+    Recursively merge two dictionaries, honoring Delete/Replace sentinels.
+
+    If both sides contain dicts, merge continues down the tree. Delete removes a key
+    from the base config, Replace overwrites without further deep merging, and other
+    values simply override. Returns a new dictionary without mutating the inputs.
+    """
     base = base.copy()
     for k, v in override.items():
         if k in base and isinstance(base[k], dict) and isinstance(v, dict):
@@ -113,6 +131,14 @@ def merge(base: dict, override: dict):
 
 
 def apply_overrides(cfg: dict, overrides: Sequence[str]):
+    """
+    Apply CLI-style override strings to a config dictionary.
+
+    Supports assignment (`=`), append (`+=`), delete (`!=`), and removal from list
+    (`-=`) using dotted/indexed key paths like ``model.layers[0].units``. Returns a
+    shallow copy with overrides applied.
+    """
+
     cfg = cfg.copy()
     for override in overrides:
         if "+=" in override:
