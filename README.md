@@ -62,4 +62,6 @@ optimizer = build(cfg["optimizer"])
 - `apply_overrides` allows for painless command-line overrides: tweak nested keys with a short-hand syntax: `optimizer.lr=...`, append with `+=`, or drop entries with `!=`.
 - `build` looks at the `"type"` key, grabs the right constructor (from the registry or import path), and wires up dependencies for you.
 
-More details are in the [docs](https://kabouzeid.github.io/mini-kit).
+## Docs
+
+More details live in the [documentation site](https://kabouzeid.github.io/mini-kit).
