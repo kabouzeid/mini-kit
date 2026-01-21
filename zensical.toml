@@ -29,8 +29,8 @@ site_author = "Karim Abou Zeid"
 # Read more: https://zensical.org/docs/setup/basics/#site_url
 #site_url = "https://www.example.com/"
 
-repo_url = "https://github.com/kabouzeid/mini-kit"
-repo_name = "kabouzeid/mini-kit"
+repo_url = "https://github.com/karimknaebel/mini-kit"
+repo_name = "karimknaebel/mini-kit"
 edit_uri = "edit/main/docs/"
 
 # The copyright notice appears in the page footer and can contain an HTML
@@ -307,7 +307,7 @@ code = "Jetbrains Mono"
 # ----------------------------------------------------------------------------
 [[project.extra.social]]
 icon = "fontawesome/brands/github"
-link = "https://github.com/kabouzeid"
+link = "https://github.com/karimknaebel"
 
 [[project.extra.social]]
 icon = "fontawesome/brands/python"
