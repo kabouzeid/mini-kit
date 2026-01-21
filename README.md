@@ -1,3 +1,9 @@
+> [!WARNING]
+> This repository is archived. The code has been split into:
+> - https://github.com/kabouzeid/cfgx
+> - https://github.com/kabouzeid/specbuild
+> - https://github.com/kabouzeid/trainloop
+
 <p align="center">
   <img src="https://github.com/user-attachments/assets/e8f5ce11-1b57-49d0-9d20-a3ee587a4498" height=200/>
 </p>
